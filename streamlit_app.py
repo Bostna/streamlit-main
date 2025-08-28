@@ -5,6 +5,12 @@ from PIL import Image
 import streamlit as st
 from ultralytics import YOLO
 
+from google.cloud import storage
+from google.oauth2 import service_account
+creds = service_account.Credentials.from_service_account_info(st.secrets["gcp_service_account"])
+client = storage.Client(credentials=creds)
+client.bucket(GCS_BUCKET).blob(GCS_BLOB).download_to_filename("/tmp/models/best.pt")
+
 # =========================================================
 # Config
 # - Step 1: keep USE_GCS=0 and put best.pt next to this file.
