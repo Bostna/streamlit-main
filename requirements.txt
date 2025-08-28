@@ -1,9 +1,10 @@
 streamlit==1.49.0
 ultralytics==8.3.187
-torch==2.6.0+cpu
-torchvision==0.21.0+cpu
+torch==2.6.0
+torchvision==0.21.0
 pillow
 numpy==2.3.2
 pandas
 opencv-python-headless
 google-cloud-storage
+google-auth
