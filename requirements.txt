@@ -1,5 +1,9 @@
-altair
+--extra-index-url https://download.pytorch.org/whl/cpu
+streamlit
+ultralytics==8.3.187
+torch==2.4.1
+pillow
 numpy
 pandas
-pydeck
-streamlit
+opencv-python-headless
+google-cloud-storage
