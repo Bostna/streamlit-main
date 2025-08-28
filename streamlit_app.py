@@ -5,20 +5,12 @@ from PIL import Image
 import streamlit as st
 from ultralytics import YOLO
 
-from google.cloud import storage
-from google.oauth2 import service_account
-creds = service_account.Credentials.from_service_account_info(st.secrets["gcp_service_account"])
-client = storage.Client(credentials=creds)
-client.bucket(GCS_BUCKET).blob(GCS_BLOB).download_to_filename("/tmp/models/best.pt")
-
-# =========================================================
+# =======================
 # Config
-# - Step 1: keep USE_GCS=0 and put best.pt next to this file.
-# - Step 2: set USE_GCS=1 and provide GCS_BUCKET + GCS_BLOB.
-# =========================================================
+# =======================
 USE_GCS     = os.getenv("USE_GCS", "0") == "1"
-GCS_BUCKET  = os.getenv("GCS_BUCKET", "tacov2")  # e.g. taco_2025_08_16
-GCS_BLOB    = os.getenv("GCS_BLOB", "taco_env/TACO/derived/_artifacts/cv/cv_20250827_032326_fold4_best_20250827_143649.pt")    # e.g. taco_env/TACO/derived/_artifacts/weights/best.pt
+GCS_BUCKET  = os.getenv("GCS_BUCKET", "")   # e.g. taco_2025_08_16 or tacov2
+GCS_BLOB    = os.getenv("GCS_BLOB", "")     # e.g. path/to/best.pt
 LOCAL_MODEL = os.getenv("LOCAL_MODEL", "best.pt")
 CACHED_PATH = "/tmp/models/best.pt"
 
@@ -30,19 +22,27 @@ CLASS_NAMES = [
     "Cardboard","Paper cup","Plastic utensils"
 ]
 
-# =========================================================
+# =======================
 # Helpers
-# =========================================================
+# =======================
 def _ensure_model_path() -> str:
-    """Get a local path to weights. If USE_GCS=1, download once to /tmp/models."""
+    """Return a local path to weights. If USE_GCS=1, download once to /tmp/models."""
     if USE_GCS:
         os.makedirs("/tmp/models", exist_ok=True)
         if not os.path.exists(CACHED_PATH):
             try:
                 from google.cloud import storage
-                client = storage.Client()  # ADC or SA key via env var
-                blob = client.bucket(GCS_BUCKET).blob(GCS_BLOB)
-                blob.download_to_filename(CACHED_PATH)
+                # Prefer Streamlit Secrets (for Streamlit Cloud)
+                if "gcp_service_account" in st.secrets:
+                    from google.oauth2 import service_account
+                    creds = service_account.Credentials.from_service_account_info(
+                        st.secrets["gcp_service_account"]
+                    )
+                    client = storage.Client(credentials=creds)
+                else:
+                    # Falls back to ADC locally if you've run `gcloud auth application-default login`
+                    client = storage.Client()
+                client.bucket(GCS_BUCKET).blob(GCS_BLOB).download_to_filename(CACHED_PATH)
             except Exception as e:
                 st.error(f"Failed to download model from gs://{GCS_BUCKET}/{GCS_BLOB}\n{e}")
                 st.stop()
@@ -51,8 +51,8 @@ def _ensure_model_path() -> str:
         if not os.path.exists(LOCAL_MODEL):
             st.error(
                 f"Model file '{LOCAL_MODEL}' not found.\n"
-                "• For Step 1: put best.pt next to this file or set LOCAL_MODEL\n"
-                "• For Step 2: set USE_GCS=1 with GCS_BUCKET + GCS_BLOB"
+                "• Local run: put best.pt next to this file or set LOCAL_MODEL\n"
+                "• Cloud run (GCS): set USE_GCS=1 with GCS_BUCKET + GCS_BLOB"
             )
             st.stop()
         return LOCAL_MODEL
@@ -60,10 +60,9 @@ def _ensure_model_path() -> str:
 @st.cache_resource(show_spinner=True)
 def load_model():
     path = _ensure_model_path()
-    # Optional: let YOLO decide device automatically
     return YOLO(path)
 
-def pil_to_bgr(pil_img: Image.Image) -> np.ndarray:
+def pil_to_bgr(pil_img: Image.Image):
     arr = np.array(pil_img.convert("RGB"))
     return arr[:, :, ::-1]
 
@@ -76,11 +75,12 @@ def draw_boxes(bgr, dets):
         label = f'{d["class_name"]} {d["score"]:.2f}'
         y = max(y1 - 7, 7)
         cv2.putText(out, label, (x1, y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,255,0), 1, cv2.LINE_AA)
-    return Image.fromarray(out[:, :, ::-1])
+    from PIL import Image as _Image
+    return _Image.fromarray(out[:, :, ::-1])
 
-# =========================================================
+# =======================
 # UI
-# =========================================================
+# =======================
 st.title("TACO Detect")
 
 col1, col2 = st.columns(2)
@@ -136,3 +136,4 @@ if image is not None:
             if counts:
                 st.subheader("Counts")
                 st.bar_chart(pd.Series(counts).sort_values(ascending=False))
+
