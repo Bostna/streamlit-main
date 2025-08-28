@@ -1,9 +1,9 @@
---extra-index-url https://download.pytorch.org/whl/cpu
-streamlit
+streamlit==1.49.0
 ultralytics==8.3.187
-torch==2.4.1
+torch==2.6.0+cpu
+torchvision==0.21.0+cpu
 pillow
-numpy
+numpy==2.3.2
 pandas
 opencv-python-headless
 google-cloud-storage
