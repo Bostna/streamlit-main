@@ -9,16 +9,15 @@ import streamlit as st
 from ultralytics import YOLO
 
 # =========================================================
-# CONFIG
+# CONFIG (read from Streamlit Secrets first, then env; no UI changes needed)
 # =========================================================
-# Set these in Streamlit Cloud → Settings → Advanced → Environment variables:
-# USE_GCS=1
-# GCS_BUCKET=ptfile
-# GCS_BLOB=taco_env_TACO_derived__artifacts_cv_cv_20250827_032326_fold0_best_20250827_130937.pt
-USE_GCS     = os.getenv("USE_GCS", "0") == "1"
-GCS_BUCKET  = os.getenv("GCS_BUCKET", "")
-GCS_BLOB    = os.getenv("GCS_BLOB", "")
-LOCAL_MODEL = os.getenv("LOCAL_MODEL", "best.pt")
+def _cfg(key: str, default: str = "") -> str:
+    return str(st.secrets.get(key, os.getenv(key, default)))
+
+USE_GCS     = _cfg("USE_GCS", "0") == "1"
+GCS_BUCKET  = _cfg("GCS_BUCKET", "")
+GCS_BLOB    = _cfg("GCS_BLOB", "")
+LOCAL_MODEL = _cfg("LOCAL_MODEL", "best.pt")
 CACHED_PATH = "/tmp/models/best.pt"
 
 CLASS_NAMES = [
@@ -30,7 +29,7 @@ CLASS_NAMES = [
 ]
 
 # =========================================================
-# OPTIONAL LOGO
+# OPTIONAL LOGO (won’t crash if missing)
 # =========================================================
 def _try_render_logo():
     logo_path = "logo/when_ai_sees_litter_logo.png"
@@ -56,29 +55,41 @@ def _try_render_logo():
 _try_render_logo()
 
 # =========================================================
+# GCS CLIENT (explicit project; uses Secrets)
+# =========================================================
+def _make_storage_client():
+    from google.cloud import storage
+    project = None
+    creds = None
+
+    if "gcp_service_account" in st.secrets:
+        from google.oauth2 import service_account
+        sa = st.secrets["gcp_service_account"]
+        creds = service_account.Credentials.from_service_account_info(sa)
+        project = sa.get("project_id")
+
+    if not project:
+        # Optional fallback if you also store it separately
+        project = st.secrets.get("GOOGLE_CLOUD_PROJECT") or os.getenv("GOOGLE_CLOUD_PROJECT") or os.getenv("GCP_PROJECT")
+
+    return storage.Client(credentials=creds, project=project)
+
+# =========================================================
 # MODEL LOADING (local or GCS)
 # =========================================================
 def _ensure_model_path() -> str:
-    """Return local path to YOLO weights. If USE_GCS=1, download once to /tmp."""
+    """Return a local path to YOLO weights. If USE_GCS=1, download once to /tmp."""
     if USE_GCS:
+        if not GCS_BUCKET or not GCS_BLOB:
+            st.error("GCS mode is enabled but GCS_BUCKET or GCS_BLOB is empty.")
+            st.stop()
         os.makedirs("/tmp/models", exist_ok=True)
         if not os.path.exists(CACHED_PATH):
             try:
-                from google.cloud import storage
-                if "gcp_service_account" in st.secrets:
-                    from google.oauth2 import service_account
-                    creds = service_account.Credentials.from_service_account_info(
-                        st.secrets["gcp_service_account"]
-                    )
-                    client = storage.Client(credentials=creds)
-                else:
-                    client = storage.Client()
+                client = _make_storage_client()
                 client.bucket(GCS_BUCKET).blob(GCS_BLOB).download_to_filename(CACHED_PATH)
             except Exception as e:
-                st.error(
-                    "Failed to download model from "
-                    f"gs://{GCS_BUCKET}/{GCS_BLOB}\n\n{e}"
-                )
+                st.error(f"Failed to download model from gs://{GCS_BUCKET}/{GCS_BLOB}\n\n{e}")
                 st.stop()
         return CACHED_PATH
     else:
@@ -86,7 +97,7 @@ def _ensure_model_path() -> str:
             st.error(
                 f"Model file '{LOCAL_MODEL}' not found.\n"
                 "• Local run: put best.pt next to this file or set LOCAL_MODEL\n"
-                "• Cloud (GCS): set USE_GCS=1 and provide GCS_BUCKET + GCS_BLOB"
+                "• Cloud: set USE_GCS=1 and provide GCS_BUCKET + GCS_BLOB in Secrets"
             )
             st.stop()
         return LOCAL_MODEL
@@ -97,66 +108,38 @@ def load_model():
     return YOLO(path)
 
 # =========================================================
-# SHIBUYA CATEGORY MAPPER
+# SHIBUYA CATEGORY MAPPER (simple rules of thumb)
 # =========================================================
 def shibuya_category_and_note(taco_name: str):
-    """Map TACO class → Shibuya garbage category + disposal note.
-       Sources: Shibuya City 'Garbage and Recycling' page (EN)."""
-    # Default
-    cat = "—"
-    note = "Check item locally."
+    # Defaults
+    cat = "Burnable (default) or check ward"
+    note = "If plastic is clean → recyclable plastics; if not washable → burnable."
 
-    # Recyclables (paper)
     paper_like = {"Paper", "Cardboard", "Other carton"}
-    # Plastics (if clean)
-    plastic_like = {
+    plastics_clean = {
         "Plastic film","Other plastic","Other plastic wrapper","Plastic bottle cap",
         "Plastic straw","Disposable plastic cup","Plastic utensils","Food wrapper","Styrofoam piece"
     }
 
     if taco_name in paper_like:
         if taco_name == "Cardboard":
-            cat = "Recyclable resource — Cardboard"
-            note = "Bundle by type; no bags."
-        elif taco_name in {"Paper", "Other carton"}:
-            cat = "Recyclable resource — Paper"
-            note = "Bundle newspapers/magazines/boxes by type; no bags. If soiled → burnable."
-
+            cat = "Recyclable resource — Cardboard"; note = "Bundle by type; no bags."
+        else:
+            cat = "Recyclable resource — Paper"; note = "Bundle by type; if soiled → burnable."
     elif taco_name == "Clear plastic bottle":
-        cat = "Recyclable resource — PET bottle"
-        note = "Remove cap+label, rinse, crush. Oil/cosmetic/paint PET bottles not accepted; heavily soiled PET → burnable."
-
+        cat = "Recyclable resource — PET bottle"; note = "Remove cap+label, rinse; crush."
     elif taco_name == "Drink can":
-        cat = "Recyclable resource — Can"
-        note = "Rinse; place in clear bag."
-
+        cat = "Recyclable resource — Can"; note = "Rinse; place in clear bag."
     elif taco_name == "Glass bottle":
-        cat = "Recyclable resource — Bottle"
-        note = "Remove cap; rinse. Heavily soiled/damaged → non-burnable."
-
-    elif taco_name in plastic_like:
-        cat = "Recyclable resource — Plastics (if clean)"
-        note = "Lightly rinse plastics and bag transparently; non-washable/dirty plastics → burnable."
-
+        cat = "Recyclable resource — Bottle"; note = "Remove cap; rinse. Heavily soiled/damaged → non-burnable."
+    elif taco_name in plastics_clean:
+        cat = "Recyclable resource — Plastics (if clean)"; note = "Lightly rinse. Non-washable plastics → burnable."
     elif taco_name in {"Metal bottle cap", "Pop tab"}:
-        cat = "Non-burnable (small metal)"
-        note = "Put in clear/semiclear bag."
-
+        cat = "Non-burnable (small metal)"; note = "Clear/semiclear bag."
     elif taco_name == "Broken glass":
-        cat = "Non-burnable (glass/ceramic)"
-        note = "Wrap sharp edges; mark 'キケン' (danger)."
-
+        cat = "Non-burnable (glass/ceramic)"; note = "Wrap edges; mark 'キケン' (danger)."
     elif taco_name == "Cigarette":
-        cat = "Burnable (regular)"
-        note = "Fully extinguish before disposal."
-
-    elif taco_name == "Paper cup":
-        cat = "Burnable (paper with lining)"
-        note = "Paper cups usually burnable unless accepted by special group collection."
-
-    else:
-        cat = "Burnable (default) or check ward"
-        note = "If plastic and clean → plastics (recyclable); if not washable → burnable."
+        cat = "Burnable"; note = "Fully extinguish before disposal."
 
     return cat, note
 
@@ -165,7 +148,7 @@ def shibuya_category_and_note(taco_name: str):
 # =========================================================
 def pil_to_bgr(img: Image.Image) -> np.ndarray:
     arr = np.array(img.convert("RGB"))
-    return arr[:, :, ::-1]  # RGB→BGR
+    return arr[:, :, ::-1]
 
 def draw_boxes_on_bgr(bgr: np.ndarray, dets: list) -> Image.Image:
     import cv2
@@ -176,15 +159,14 @@ def draw_boxes_on_bgr(bgr: np.ndarray, dets: list) -> Image.Image:
         label = f'{d["class_name"]} {d["score"]:.2f}'
         y = max(y1 - 7, 7)
         cv2.putText(out, label, (x1, y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,255,0), 1, cv2.LINE_AA)
-    return Image.fromarray(out[:, :, ::-1])  # Back to RGB for Streamlit
+    return Image.fromarray(out[:, :, ::-1])
 
 def run_yolo_on_bgr(bgr: np.ndarray, conf: float, iou: float):
     model = load_model()
     results = model.predict(bgr, conf=conf, iou=iou, imgsz=640, verbose=False)
     pred = results[0]
 
-    dets = []
-    counts = {}
+    dets, counts = [], {}
     if pred.boxes is not None and len(pred.boxes) > 0:
         boxes = pred.boxes.xyxy.cpu().numpy()
         scores = pred.boxes.conf.cpu().numpy()
@@ -209,13 +191,9 @@ def run_yolo_on_bgr(bgr: np.ndarray, conf: float, iou: float):
     return dets, counts, vis
 
 def process_video(file_bytes: bytes, conf: float, iou: float, frame_step: int = 3, max_frames: int = 600):
-    """Annotate a video; sample every `frame_step` frames for speed."""
     import cv2
-
-    # Save upload to temp for OpenCV
     in_file = tempfile.NamedTemporaryFile(suffix=".mp4", delete=False)
-    in_file.write(file_bytes)
-    in_file.flush(); in_file.close()
+    in_file.write(file_bytes); in_file.flush(); in_file.close()
 
     cap = cv2.VideoCapture(in_file.name)
     if not cap.isOpened():
@@ -255,15 +233,13 @@ def process_video(file_bytes: bytes, conf: float, iou: float, frame_step: int = 
             for i in range(len(boxes)):
                 x1, y1, x2, y2 = map(int, boxes[i].tolist())
                 c = int(clsi[i])
-                name = CLASS_NAMES[c] if 0 <= c < len(CLASS_NAMES) else str(c)
+                name = CLASS_NAMES[c] if 0 <= c < len(CL_CLASS_NAMES := CLASS_NAMES) else str(c)  # noqa
                 s = float(scores[i])
 
-                # counts
                 class_counts[name] = class_counts.get(name, 0) + 1
                 shibuya_cat, _ = shibuya_category_and_note(name)
                 shibuya_counts[shibuya_cat] = shibuya_counts.get(shibuya_cat, 0) + 1
 
-                # draw
                 cv2.rectangle(frame, (x1, y1), (x2, y2), (0,255,0), 2)
                 label = f"{name} {s:.2f}"
                 ytxt = max(y1 - 7, 7)
@@ -282,8 +258,24 @@ def process_video(file_bytes: bytes, conf: float, iou: float, frame_step: int = 
 # UI
 # =========================================================
 st.title("When AI Sees Litter")
-st.write("Identify items and show the Shibuya garbage type ♻️")
-st.caption("Model runs locally with weights from GCS or a local .pt file.")
+st.write("Identify items and map to Shibuya garbage type ♻️")
+st.caption("Note: This app runs inference with your trained .pt; training should be done in a notebook/Colab.")
+
+# Debug sidebar (helps verify Secrets/GCS)
+with st.sidebar:
+    st.header("Debug")
+    st.write({
+        "USE_GCS": USE_GCS,
+        "GCS_BUCKET": GCS_BUCKET,
+        "GCS_BLOB": GCS_BLOB,
+        "has_service_account": "gcp_service_account" in st.secrets,
+        "project_from_sa": st.secrets.get("gcp_service_account", {}).get("project_id", None),
+        "GOOGLE_CLOUD_PROJECT": st.secrets.get("GOOGLE_CLOUD_PROJECT", None),
+    })
+    if st.button("Test model path"):
+        p = _ensure_model_path()
+        sz = os.path.getsize(p)/1e6
+        st.success(f"Model ready at {p} ({sz:.2f} MB)")
 
 col1, col2 = st.columns(2)
 conf = col1.slider("Confidence", 0.05, 0.95, 0.25, 0.01)
@@ -302,12 +294,15 @@ if mode == "Capture Photo (Webcam)":
         img = Image.open(shot).convert("RGB")
         st.image(img, caption="Captured photo", use_container_width=True)
         if st.button("Run detection on photo"):
-            bgr = np.array(img)[:, :, ::-1]
+            bgr = pil_to_bgr(img)
             dets, counts, vis = run_yolo_on_bgr(bgr, conf, iou)
             st.subheader("Detections")
             st.image(vis, use_container_width=True)
             if dets:
                 st.dataframe(pd.DataFrame(dets))
+                by_shibuya = pd.Series([d["shibuya_type"] for d in dets]).value_counts()
+                st.subheader("Counts by Shibuya garbage type")
+                st.bar_chart(by_shibuya)
             if counts:
                 st.subheader("Counts by class")
                 st.bar_chart(pd.Series(counts).sort_values(ascending=False))
@@ -319,13 +314,12 @@ elif mode == "Upload Image":
         img = Image.open(up).convert("RGB")
         st.image(img, caption="Uploaded image", use_container_width=True)
         if st.button("Run detection on image"):
-            bgr = np.array(img)[:, :, ::-1]
+            bgr = pil_to_bgr(img)
             dets, counts, vis = run_yolo_on_bgr(bgr, conf, iou)
             st.subheader("Detections")
             st.image(vis, use_container_width=True)
             if dets:
                 st.dataframe(pd.DataFrame(dets))
-                # Aggregate by Shibuya type
                 by_shibuya = pd.Series([d["shibuya_type"] for d in dets]).value_counts()
                 st.subheader("Counts by Shibuya garbage type")
                 st.bar_chart(by_shibuya)
@@ -359,5 +353,6 @@ else:
                     st.bar_chart(pd.Series(class_counts).sort_values(ascending=False))
             else:
                 st.error("Video processing failed.")
+
 
 
