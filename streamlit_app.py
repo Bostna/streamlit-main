@@ -50,7 +50,6 @@ def _read_sa_from_secrets():
     if sa is None:
         return None
     if isinstance(sa, str):
-        # in case user pasted raw JSON as a string
         try:
             return json.loads(sa)
         except Exception:
@@ -68,11 +67,9 @@ def _make_storage_client():
         creds = service_account.Credentials.from_service_account_info(sa)
         project = sa.get("project_id")
 
-    # optional extra fallback if you also saved a project id
     project = project or st.secrets.get("GOOGLE_CLOUD_PROJECT") \
               or os.getenv("GOOGLE_CLOUD_PROJECT") or os.getenv("GCP_PROJECT")
 
-    # pass project explicitly so it never tries the metadata server
     return storage.Client(credentials=creds, project=project)
 
 # =========================================================
@@ -118,12 +115,10 @@ def _ensure_model_path(force: bool = False) -> str:
 
 @st.cache_resource(show_spinner=True)
 def load_model(cache_key: float = 0.0):
-    # cache_key is just to let us clear/reload via button
     path = _ensure_model_path(force=False)
     return YOLO(path)
 
 def get_class_names(model: YOLO):
-    # prefer model-contained class names to avoid mismatch
     names = getattr(getattr(model, "model", model), "names", None)
     if isinstance(names, dict):
         return [names[i] for i in range(len(names))]
@@ -170,7 +165,7 @@ def shibuya_category_and_note(name: str):
     return cat, note
 
 # =========================================================
-# Inference helpers (use Ultralytics' plot to render)
+# Inference helpers (image)
 # =========================================================
 def pil_to_rgb(pil_img: Image.Image) -> np.ndarray:
     return np.array(pil_img.convert("RGB"))
@@ -199,18 +194,91 @@ def run_inference_rgb(rgb: np.ndarray, conf: float, iou: float, imgsz: int):
                 "shibuya_type": sh_cat, "note": note
             })
 
-    # Annotated image (Ultralytics returns BGR)
     anno_bgr = pred.plot()
     anno_rgb = anno_bgr[:, :, ::-1]
     vis = Image.fromarray(anno_rgb)
 
-    # Counts
     counts = {}
     for d in dets:
         counts[d["class_name"]] = counts.get(d["class_name"], 0) + 1
 
     task = getattr(getattr(model, "model", model), "task", "unknown")
     return dets, counts, vis, names, task
+
+# =========================================================
+# Video processing (CPU-friendly sampling)
+# =========================================================
+def process_video(file_bytes: bytes, conf: float, iou: float, imgsz: int,
+                  frame_step: int = 3, max_frames: int = 600):
+    import cv2
+
+    # Save upload to temp for OpenCV
+    in_file = tempfile.NamedTemporaryFile(suffix=".mp4", delete=False)
+    in_file.write(file_bytes)
+    in_file.flush(); in_file.close()
+
+    cap = cv2.VideoCapture(in_file.name)
+    if not cap.isOpened():
+        st.error("Could not read the uploaded video.")
+        return None, {}, {}, 0
+
+    total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) or 0
+    fps   = max(1.0, cap.get(cv2.CAP_PROP_FPS) or 24.0)
+    w     = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    h     = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
+    fps_out = max(1.0, fps / max(1, frame_step))
+    fourcc  = cv2.VideoWriter_fourcc(*"mp4v")
+    out_file = tempfile.NamedTemporaryFile(suffix=".mp4", delete=False)
+    writer = cv2.VideoWriter(out_file.name, fourcc, fps_out, (w, h))
+
+    model = load_model()
+    names = get_class_names(model)
+
+    class_counts = {}
+    shibuya_counts = {}
+    frame_idx = 0
+    processed = 0
+    target_steps = min(max_frames, total // max(1, frame_step) if total else max_frames)
+    prog = st.progress(0.0)
+
+    while True:
+        ok, frame = cap.read()
+        if not ok:
+            break
+        if frame_idx % max(1, frame_step) != 0:
+            frame_idx += 1
+            continue
+
+        results = model.predict(frame, conf=conf, iou=iou, imgsz=imgsz, max_det=300, verbose=False)
+        pred = results[0]
+
+        # get annotated frame
+        anno = pred.plot()  # BGR
+        if anno.shape[1] != w or anno.shape[0] != h:
+            anno = cv2.resize(anno, (w, h), interpolation=cv2.INTER_LINEAR)
+        writer.write(anno)
+
+        # update counts
+        if pred.boxes is not None and len(pred.boxes) > 0:
+            boxes = pred.boxes.xyxy.cpu().numpy()
+            clsi  = pred.boxes.cls.cpu().numpy().astype(int)
+            for c in clsi:
+                name = names[c] if 0 <= c < len(names) else str(c)
+                class_counts[name] = class_counts.get(name, 0) + 1
+                sh_cat, _ = shibuya_category_and_note(name)
+                shibuya_counts[sh_cat] = shibuya_counts.get(sh_cat, 0) + 1
+
+        processed += 1
+        frame_idx += 1
+        if processed >= max_frames:
+            break
+        if target_steps:
+            prog.progress(min(1.0, processed / target_steps))
+
+    cap.release(); writer.release()
+    prog.progress(1.0)
+    return out_file.name, class_counts, shibuya_counts, processed
 
 # =========================================================
 # UI
@@ -258,7 +326,7 @@ conf  = col1.slider("Confidence", 0.01, 0.90, 0.15, 0.01)
 iou   = col2.slider("IoU",        0.10, 0.90, 0.45, 0.01)
 imgsz = col3.select_slider("Image size", options=[320, 480, 640, 800, 960, 1024], value=960)
 
-mode = st.selectbox("Input type", ("Capture Photo (Webcam)", "Upload Image"))
+mode = st.selectbox("Input type", ("Capture Photo (Webcam)", "Upload Image", "Upload Video"))
 
 if st.button("🔁 Load model"):
     _ = load_model()
@@ -285,7 +353,7 @@ if mode == "Capture Photo (Webcam)":
                 st.info("No detections. Try lowering confidence, increasing image size, or using a clearer object.")
 
 # Image
-else:
+elif mode == "Upload Image":
     up = st.file_uploader("Upload an image", type=["jpg","jpeg","png"])
     if up is not None:
         img = Image.open(up).convert("RGB")
@@ -303,3 +371,30 @@ else:
                 st.bar_chart(by_sh)
             else:
                 st.info("No detections. Try lowering confidence, increasing image size, or using a clearer object.")
+
+# Video
+else:
+    vid = st.file_uploader("Upload a video", type=["mp4","mov","avi","mkv"])
+    step = st.slider("Process every Nth frame", 1, 12, 3)
+    cap_limit = st.slider("Max processed frames", 100, 2500, 600, step=50)
+    if vid is not None:
+        st.video(vid)
+        if st.button("Run detection on video"):
+            with st.spinner("Processing video on CPU…"):
+                out_path, class_counts, shibuya_counts, processed = process_video(
+                    vid.read(), conf=conf, iou=iou, imgsz=imgsz, frame_step=step, max_frames=cap_limit
+                )
+            if out_path:
+                st.success(f"Processed {processed} sampled frames.")
+                st.subheader("Annotated Video")
+                st.video(out_path)
+                with open(out_path, "rb") as f:
+                    st.download_button("Download annotated MP4", f, file_name="annotated.mp4", mime="video/mp4")
+                if shibuya_counts:
+                    st.subheader("Counts by Shibuya garbage type (sampled)")
+                    st.bar_chart(pd.Series(shibuya_counts).sort_values(ascending=False))
+                if class_counts:
+                    st.subheader("Counts by class (sampled)")
+                    st.bar_chart(pd.Series(class_counts).sort_values(ascending=False))
+            else:
+                st.error("Video processing failed.")
