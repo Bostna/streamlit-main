@@ -11,7 +11,7 @@ from ultralytics import YOLO
 # =========================================================
 # Config (local only)
 # =========================================================
-LOCAL_MODEL = os.getenv("LOCAL_MODEL", "yolo_litter.pt")
+LOCAL_MODEL = os.getenv("LOCAL_MODEL", "yolo_litterv1.pt")
 CACHED_PATH = LOCAL_MODEL  # kept for compatibility
 
 # =========================================================
