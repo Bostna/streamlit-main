@@ -5,5 +5,5 @@ torchvision
 pillow
 numpy
 pandas
-opencv-python-headless
+#opencv-python-headless
 opencv-python
