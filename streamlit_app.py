@@ -16,9 +16,9 @@ from ultralytics import YOLO
 # =========================================================
 USE_GITHUB   = os.getenv("USE_GITHUB", "0") == "1"
 GITHUB_URL   = os.getenv("GITHUB_URL", "")
-LOCAL_MODEL  = os.getenv("LOCAL_MODEL", "yolo_litter.pt")
+LOCAL_MODEL  = os.getenv("LOCAL_MODEL", "yolo_litterv1.pt")
 CACHED_DIR   = "/tmp/models"
-CACHED_PATH  = os.path.join(CACHED_DIR, "yolo_litter.pt")
+CACHED_PATH  = os.path.join(CACHED_DIR, "yolo_litterv1.pt")
 
 CLASS_NAMES = [
     "Cigarette","Plastic film","Clear plastic bottle","Other plastic",
@@ -37,7 +37,7 @@ def _ensure_model_path() -> str:
 
     if USE_GITHUB:
         if not GITHUB_URL:
-            st.error("USE_GITHUB=1 but GITHUB_URL is empty. Provide a raw URL to yolo_litter.pt.")
+            st.error("USE_GITHUB=1 but GITHUB_URL is empty. Provide a raw URL to yolo_litterv1.pt.")
             st.stop()
         if not os.path.exists(CACHED_PATH):
             try:
@@ -55,7 +55,7 @@ def _ensure_model_path() -> str:
 
     # Local fallback
     if not os.path.exists(LOCAL_MODEL):
-        st.error(f"Model file '{LOCAL_MODEL}' not found. Put yolo_litter.pt next to this file or set LOCAL_MODEL")
+        st.error(f"Model file '{LOCAL_MODEL}' not found. Put yolo_litterv1.pt next to this file or set LOCAL_MODEL")
         st.stop()
     return LOCAL_MODEL
 
