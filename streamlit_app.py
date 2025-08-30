@@ -7,14 +7,18 @@ from ultralytics import YOLO
 
 # =========================================================
 # Config
-# - Step 1: keep USE_GCS=0 and put best.pt next to this file.
-# - Step 2: set USE_GCS=1 and provide GCS_BUCKET + GCS_BLOB.
+# Options:
+#   1) Local file  -> put yolo_litter.pt next to this file or set LOCAL_MODEL
+#   2) GitHub RAW  -> set USE_GITHUB=1 and provide GITHUB_URL
+# Env examples:
+#   USE_GITHUB=1
+#   GITHUB_URL=https://raw.githubusercontent.com/<user>/<repo>/<branch>/path/to/yolo_litter.pt
 # =========================================================
-USE_GCS     = os.getenv("USE_GCS", "0") == "1"
-GCS_BUCKET  = os.getenv("GCS_BUCKET", "tacov2")  # e.g. taco_2025_08_16
-GCS_BLOB    = os.getenv("GCS_BLOB", "taco_env/TACO/derived/_artifacts/cv/cv_20250827_032326_fold4_best_20250827_143649.pt")    # e.g. taco_env/TACO/derived/_artifacts/weights/best.pt
-LOCAL_MODEL = os.getenv("LOCAL_MODEL", "best.pt")
-CACHED_PATH = "/tmp/models/best.pt"
+USE_GITHUB   = os.getenv("USE_GITHUB", "0") == "1"
+GITHUB_URL   = os.getenv("GITHUB_URL", "")
+LOCAL_MODEL  = os.getenv("LOCAL_MODEL", "yolo_litter.pt")
+CACHED_DIR   = "/tmp/models"
+CACHED_PATH  = os.path.join(CACHED_DIR, "yolo_litter.pt")
 
 CLASS_NAMES = [
     "Cigarette","Plastic film","Clear plastic bottle","Other plastic",
@@ -28,38 +32,54 @@ CLASS_NAMES = [
 # Helpers
 # =========================================================
 def _ensure_model_path() -> str:
-    """Get a local path to weights. If USE_GCS=1, download once to /tmp/models."""
-    if USE_GCS:
-        os.makedirs("/tmp/models", exist_ok=True)
+    """Return a local path to weights. Download from GitHub if needed."""
+    os.makedirs(CACHED_DIR, exist_ok=True)
+
+    if USE_GITHUB:
+        if not GITHUB_URL:
+            st.error("USE_GITHUB=1 but GITHUB_URL is empty. Provide a raw URL to yolo_litter.pt.")
+            st.stop()
         if not os.path.exists(CACHED_PATH):
             try:
-                from google.cloud import storage
-                client = storage.Client()  # ADC or SA key via env var
-                blob = client.bucket(GCS_BUCKET).blob(GCS_BLOB)
-                blob.download_to_filename(CACHED_PATH)
+                import requests
+                with st.spinner("Downloading model from GitHub..."):
+                    resp = requests.get(GITHUB_URL, timeout=60)
+                    resp.raise_for_status()
+                    with open(CACHED_PATH, "wb") as f:
+                        f.write(resp.content)
+                st.success("Downloaded model from GitHub.")
             except Exception as e:
-                st.error(f"Failed to download model from gs://{GCS_BUCKET}/{GCS_BLOB}\n{e}")
+                st.error(f"Failed to download from GitHub\n{e}")
                 st.stop()
         return CACHED_PATH
-    else:
-        if not os.path.exists(LOCAL_MODEL):
-            st.error(
-                f"Model file '{LOCAL_MODEL}' not found.\n"
-                "• For Step 1: put best.pt next to this file or set LOCAL_MODEL\n"
-                "• For Step 2: set USE_GCS=1 with GCS_BUCKET + GCS_BLOB"
-            )
-            st.stop()
-        return LOCAL_MODEL
+
+    # Local fallback
+    if not os.path.exists(LOCAL_MODEL):
+        st.error(f"Model file '{LOCAL_MODEL}' not found. Put yolo_litter.pt next to this file or set LOCAL_MODEL")
+        st.stop()
+    return LOCAL_MODEL
 
 @st.cache_resource(show_spinner=True)
 def load_model():
     path = _ensure_model_path()
-    # Optional: let YOLO decide device automatically
     return YOLO(path)
 
 def pil_to_bgr(pil_img: Image.Image) -> np.ndarray:
     arr = np.array(pil_img.convert("RGB"))
     return arr[:, :, ::-1]
+
+def _class_name_lookup(model, idx: int) -> str:
+    try:
+        names = getattr(model.model, "names", None) or getattr(model, "names", None)
+        if isinstance(names, dict):
+            return names.get(int(idx), str(int(idx)))
+        if isinstance(names, list) and 0 <= int(idx) < len(names):
+            return names[int(idx)]
+    except Exception:
+        pass
+    if 0 <= int(idx) < len(CLASS_NAMES):
+        return CLASS_NAMES[int(idx)]
+    return str(int(idx))
 
 def draw_boxes(bgr, dets):
     import cv2
@@ -88,12 +108,12 @@ if src == "Upload image":
     if up:
         image = Image.open(up).convert("RGB")
 else:
-    shot = st.camera_input("Take a photo")
+    shot = st.camera_input("Take a photo", key="cam_one")
     if shot:
         image = Image.open(shot).convert("RGB")
 
 if st.button("Load model"):
-    _ = load_model()
+    model = load_model()
     st.success("Model ready.")
 
 if image is not None:
@@ -115,7 +135,7 @@ if image is not None:
             for i in range(len(boxes)):
                 x1, y1, x2, y2 = boxes[i].tolist()
                 c = int(clsi[i])
-                name = CLASS_NAMES[c] if 0 <= c < len(CLASS_NAMES) else str(c)
+                name = _class_name_lookup(model, c)
                 s = float(scores[i])
                 dets.append({"xyxy":[x1,y1,x2,y2], "class_id":c, "class_name":name, "score":s})
                 counts[name] = counts.get(name, 0) + 1
@@ -130,4 +150,3 @@ if image is not None:
             if counts:
                 st.subheader("Counts")
                 st.bar_chart(pd.Series(counts).sort_values(ascending=False))
-
