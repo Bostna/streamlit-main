@@ -1,4 +1,5 @@
 import os
+import shutil
 import numpy as np
 import pandas as pd
 from PIL import Image
@@ -6,56 +7,79 @@ import streamlit as st
 from ultralytics import YOLO
 
 # =========================================================
-# Config
-# - Step 1: keep USE_GCS=0 and put best.pt next to this file.
-# - Step 2: set USE_GCS=1 and provide GCS_BUCKET + GCS_BLOB.
+# Page config
 # =========================================================
-USE_GCS     = os.getenv("USE_GCS", "0") == "1"
-GCS_BUCKET  = os.getenv("GCS_BUCKET", "tacov2")  # e.g. taco_2025_08_16
-GCS_BLOB    = os.getenv("GCS_BLOB", "taco_env/TACO/derived/_artifacts/weights/best_3class_exp_subset3_new_3class_20250831_150045.pt")    # e.g. taco_env/TACO/derived/_artifacts/weights/best.pt
+st.set_page_config(page_title="TACO Detect", page_icon="♻️", layout="wide")
+
+# =========================================================
+# Config
+#   Option A: put best.pt next to this file and leave MODEL_URL empty
+#   Option B: set MODEL_URL to a direct GitHub Raw URL to best.pt
+# =========================================================
+MODEL_URL   = os.getenv("MODEL_URL", "https://raw.githubusercontent.com/Bellzum/streamlit-main/main/new_taco1.pt")
 LOCAL_MODEL = os.getenv("LOCAL_MODEL", "best.pt")
 CACHED_PATH = "/tmp/models/best.pt"
 
-CLASS_NAMES = [
-    "Cigarette","Plastic film","Clear plastic bottle","Other plastic",
-    "Other plastic wrapper","Drink can","Plastic bottle cap","Plastic straw",
-    "Broken glass","Styrofoam piece","Glass bottle","Disposable plastic cup",
-    "Pop tab","Other carton","Paper","Food wrapper","Metal bottle cap",
-    "Cardboard","Paper cup","Plastic utensils"
-]
+# Exactly 3 classes as a fallback
+CLASS_NAMES = ["Clear plastic bottle", "Drink can", "Styrofoam piece"]
 
 # =========================================================
 # Helpers
 # =========================================================
-def _ensure_model_path() -> str:
-    """Get a local path to weights. If USE_GCS=1, download once to /tmp/models."""
-    if USE_GCS:
-        os.makedirs("/tmp/models", exist_ok=True)
-        if not os.path.exists(CACHED_PATH):
-            try:
-                from google.cloud import storage
-                client = storage.Client()  # ADC or SA key via env var
-                blob = client.bucket(GCS_BUCKET).blob(GCS_BLOB)
-                blob.download_to_filename(CACHED_PATH)
-            except Exception as e:
-                st.error(f"Failed to download model from gs://{GCS_BUCKET}/{GCS_BLOB}\n{e}")
-                st.stop()
-        return CACHED_PATH
-    else:
-        if not os.path.exists(LOCAL_MODEL):
+def _download_file(url: str, dest: str):
+    os.makedirs(os.path.dirname(dest), exist_ok=True)
+    try:
+        import requests
+        with requests.get(url, stream=True, timeout=60) as r:
+            r.raise_for_status()
+            with open(dest, "wb") as f:
+                for chunk in r.iter_content(chunk_size=8192):
+                    if chunk:
+                        f.write(chunk)
+        return
+    except Exception as e_req:
+        try:
+            import urllib.request
+            with urllib.request.urlopen(url, timeout=60) as resp, open(dest, "wb") as f:
+                shutil.copyfileobj(resp, f)
+        except Exception as e_url:
             st.error(
-                f"Model file '{LOCAL_MODEL}' not found.\n"
-                "• For Step 1: put best.pt next to this file or set LOCAL_MODEL\n"
-                "• For Step 2: set USE_GCS=1 with GCS_BUCKET + GCS_BLOB"
+                f"Failed to download model from URL:\n{url}\n\n"
+                f"requests error: {e_req}\nurllib error: {e_url}\n\n"
+                "If this is a private repo or a rate limit issue, either make the file public, "
+                "use a GitHub Release asset, or commit the weight into this app repository."
             )
             st.stop()
-        return LOCAL_MODEL
+
+def _ensure_model_path() -> str:
+    """Return a local path to the weights. Prefer MODEL_URL if set, otherwise LOCAL_MODEL."""
+    if MODEL_URL.strip().startswith("http"):
+        if not os.path.exists(CACHED_PATH):
+            _download_file(MODEL_URL.strip(), CACHED_PATH)
+        return CACHED_PATH
+
+    if not os.path.exists(LOCAL_MODEL):
+        st.error(
+            f"Model file '{LOCAL_MODEL}' not found.\n"
+            "Provide MODEL_URL as a direct GitHub Raw link or place best.pt next to this file."
+        )
+        st.stop()
+    return LOCAL_MODEL
+
+def _cache_key_for(path: str) -> str:
+    try:
+        return f"{path}:{os.path.getmtime(path)}:{os.path.getsize(path)}"
+    except Exception:
+        return path
 
 @st.cache_resource(show_spinner=True)
+def _load_model_cached(path: str, key: str):
+    # key is unused by the function body but included to bust the cache when file changes
+    return YOLO(path)
+
 def load_model():
     path = _ensure_model_path()
-    # Optional: let YOLO decide device automatically
-    return YOLO(path)
+    return _load_model_cached(path, _cache_key_for(path))
 
 def pil_to_bgr(pil_img: Image.Image) -> np.ndarray:
     arr = np.array(pil_img.convert("RGB"))
@@ -66,16 +90,33 @@ def draw_boxes(bgr, dets):
     out = bgr.copy()
     for d in dets:
         x1, y1, x2, y2 = map(int, d["xyxy"])
-        cv2.rectangle(out, (x1, y1), (x2, y2), (0,255,0), 2)
+        cv2.rectangle(out, (x1, y1), (x2, y2), (0, 255, 0), 2)
         label = f'{d["class_name"]} {d["score"]:.2f}'
         y = max(y1 - 7, 7)
-        cv2.putText(out, label, (x1, y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,255,0), 1, cv2.LINE_AA)
+        cv2.putText(out, label, (x1, y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1, cv2.LINE_AA)
     return Image.fromarray(out[:, :, ::-1])
+
+def _get_names_map(pred, model):
+    # Prefer names stored in prediction or model if available
+    names_map = None
+    if hasattr(pred, "names") and isinstance(pred.names, dict):
+        names_map = pred.names
+    elif hasattr(model, "names") and isinstance(model.names, dict):
+        names_map = model.names
+    elif hasattr(model, "names") and isinstance(model.names, list):
+        names_map = {i: n for i, n in enumerate(model.names)}
+    return names_map
 
 # =========================================================
 # UI
 # =========================================================
 st.title("TACO Detect")
+
+with st.expander("Model source"):
+    st.write(f"LOCAL_MODEL: {LOCAL_MODEL}")
+    st.write(f"MODEL_URL: {MODEL_URL or '(empty)'}")
+    if os.path.exists(CACHED_PATH):
+        st.write(f"Cached path: {CACHED_PATH}  size: {os.path.getsize(CACHED_PATH)/1e6:.2f} MB")
 
 col1, col2 = st.columns(2)
 conf = col1.slider("Confidence", 0.05, 0.95, 0.25, 0.01)
@@ -84,16 +125,27 @@ iou  = col2.slider("IoU", 0.10, 0.90, 0.45, 0.01)
 src = st.radio("Input source", ["Upload image", "Webcam"], horizontal=True)
 image = None
 if src == "Upload image":
-    up = st.file_uploader("Choose an image", type=["jpg","jpeg","png"])
+    up = st.file_uploader("Choose an image", type=["jpg", "jpeg", "png"])
     if up:
         image = Image.open(up).convert("RGB")
 else:
-    shot = st.camera_input("Take a photo")
+    shot = st.camera_input("Take a photo", key="cam1")
     if shot:
         image = Image.open(shot).convert("RGB")
 
 if st.button("Load model"):
-    _ = load_model()
+    m = load_model()
+    names_from_model = getattr(m, "names", None)
+    if isinstance(names_from_model, dict):
+        st.info(f"Checkpoint labels: {list(names_from_model.values())}")
+        if len(names_from_model) != 3:
+            st.warning(f"Checkpoint reports {len(names_from_model)} classes. Expected 3.")
+    elif isinstance(names_from_model, list):
+        st.info(f"Checkpoint labels: {names_from_model}")
+        if len(names_from_model) != 3:
+            st.warning(f"Checkpoint reports {len(names_from_model)} classes. Expected 3.")
+    else:
+        st.info(f"Using fallback CLASS_NAMES: {CLASS_NAMES}")
     st.success("Model ready.")
 
 if image is not None:
@@ -111,13 +163,18 @@ if image is not None:
             scores = pred.boxes.conf.cpu().numpy()
             clsi   = pred.boxes.cls.cpu().numpy().astype(int)
 
+            names_map = _get_names_map(pred, model)
+
             dets, counts = [], {}
             for i in range(len(boxes)):
                 x1, y1, x2, y2 = boxes[i].tolist()
                 c = int(clsi[i])
-                name = CLASS_NAMES[c] if 0 <= c < len(CLASS_NAMES) else str(c)
+                if isinstance(names_map, dict):
+                    name = names_map.get(c, str(c))
+                else:
+                    name = CLASS_NAMES[c] if 0 <= c < len(CLASS_NAMES) else str(c)
                 s = float(scores[i])
-                dets.append({"xyxy":[x1,y1,x2,y2], "class_id":c, "class_name":name, "score":s})
+                dets.append({"xyxy": [x1, y1, x2, y2], "class_id": c, "class_name": name, "score": s})
                 counts[name] = counts.get(name, 0) + 1
 
             vis_img = draw_boxes(bgr, dets)

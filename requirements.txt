@@ -1,19 +1,9 @@
 streamlit
 ultralytics
-opencv-python-headless
 torch
 torchvision
+opencv-python-headless>=4.8.0.74,<5.0
 pillow
 numpy
 pandas
-#opencv-python
-
-# streamlit
-# ultralytics
-# torch
-# torchvision
-# opencv-python-headless>=4.8.0.74,<5.0
-# numpy
-# pillow
-# streamlit-webrtc 
-# thop
+requests
