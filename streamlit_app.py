@@ -15,13 +15,18 @@ st.set_page_config(page_title="TACO Detect", page_icon="♻️", layout="wide")
 # Config
 #   Option A: put best.pt next to this file and leave MODEL_URL empty
 #   Option B: set MODEL_URL to a direct GitHub Raw URL to best.pt
+#   You can set IMGSZ via environment, e.g. IMGSZ=640
 # =========================================================
-MODEL_URL   = os.getenv("MODEL_URL", "https://raw.githubusercontent.com/Bellzum/streamlit-main/main/new_taco1.pt")
-LOCAL_MODEL = os.getenv("LOCAL_MODEL", "best.pt")
-CACHED_PATH = "/tmp/models/best.pt"
+MODEL_URL    = os.getenv("MODEL_URL", "https://raw.githubusercontent.com/Bellzum/streamlit-main/main/new_taco1.pt")
+LOCAL_MODEL  = os.getenv("LOCAL_MODEL", "best.pt")
+CACHED_PATH  = "/tmp/models/best.pt"
+DEFAULT_IMGSZ = int(os.getenv("IMGSZ", "640"))  # only affects UI default
 
 # Exactly 3 classes as a fallback
 CLASS_NAMES = ["Clear plastic bottle", "Drink can", "Styrofoam piece"]
+
+# Allowed image sizes for the select slider
+IMGSZ_OPTIONS = [320, 416, 512, 640, 800, 960, 1280]
 
 # =========================================================
 # Helpers
@@ -74,7 +79,7 @@ def _cache_key_for(path: str) -> str:
 
 @st.cache_resource(show_spinner=True)
 def _load_model_cached(path: str, key: str):
-    # key is unused by the function body but included to bust the cache when file changes
+    # key is unused by the body but ensures cache refresh when file changes
     return YOLO(path)
 
 def load_model():
@@ -107,6 +112,9 @@ def _get_names_map(pred, model):
         names_map = {i: n for i, n in enumerate(model.names)}
     return names_map
 
+def _closest_size(target: int, options: list[int]) -> int:
+    return min(options, key=lambda x: abs(x - target))
+
 # =========================================================
 # UI
 # =========================================================
@@ -118,9 +126,17 @@ with st.expander("Model source"):
     if os.path.exists(CACHED_PATH):
         st.write(f"Cached path: {CACHED_PATH}  size: {os.path.getsize(CACHED_PATH)/1e6:.2f} MB")
 
-col1, col2 = st.columns(2)
+col1, col2, col3 = st.columns(3)
 conf = col1.slider("Confidence", 0.05, 0.95, 0.25, 0.01)
 iou  = col2.slider("IoU", 0.10, 0.90, 0.45, 0.01)
+
+default_imgsz = _closest_size(DEFAULT_IMGSZ, IMGSZ_OPTIONS)
+imgsz = col3.select_slider(
+    "Inference image size",
+    options=IMGSZ_OPTIONS,
+    value=default_imgsz,
+    help="Bigger size helps small objects but is slower"
+)
 
 src = st.radio("Input source", ["Upload image", "Webcam"], horizontal=True)
 image = None
@@ -153,7 +169,7 @@ if image is not None:
     if st.button("Run detection"):
         model = load_model()
         bgr = pil_to_bgr(image)
-        results = model.predict(bgr, conf=conf, iou=iou, imgsz=640, verbose=False)
+        results = model.predict(bgr, conf=conf, iou=iou, imgsz=imgsz, verbose=False)
         pred = results[0]
 
         if pred.boxes is None or len(pred.boxes) == 0:
