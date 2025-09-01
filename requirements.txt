@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 streamlit
 ultralytics
 opencv-python-headless
@@ -18,19 +17,3 @@ pandas
 # pillow
 # streamlit-webrtc 
 # thop
-=======
-# API
-fastapi         # API framework
-pytz            # time zone management
-uvicorn         # web server
-
-streamlit
-ultralytics==8.3.187
-torch
-pillow
-numpy
-pandas
-opencv-python-headless
-google-cloud-storage
-
->>>>>>> b_note
