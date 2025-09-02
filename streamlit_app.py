@@ -6,48 +6,56 @@ from PIL import Image
 import streamlit as st
 from ultralytics import YOLO
 
-st.set_page_config(page_title="TACO Detect", page_icon="♻️", layout="wide")
+st.set_page_config(page_title="When AI Sees Litter — Shibuya", page_icon="♻️", layout="wide")
 
 # =============== THEME (CSS) ===============
 def apply_theme():
     st.markdown("""
     <style>
       :root{
-        --eco-primary:#2E7D32;       /* deep green */
-        --eco-accent:#43A047;        /* mid green */
-        --eco-bg:#F6FFF8;            /* soft mint */
-        --eco-card:#FFFFFF;
-        --eco-text:#0B3D2E;          /* dark green text */
-        --eco-muted:#4F6F5A;
-        --eco-pill:#E8F5E9;
-        --eco-border:#DCEFE3;
+        --eco-primary:#7EE787;        /* neon green */
+        --eco-accent:#44BD87;         /* teal-green */
+        --eco-bg:#0F1E17;             /* deep green */
+        --eco-card:#12251C;           /* card green */
+        --eco-text:#EAF7EF;           /* light mint */
+        --eco-muted:#bde7c6;
+        --eco-pill:#143022;
+        --eco-border:rgba(255,255,255,.08);
       }
       html, body, [data-testid="stAppViewContainer"]{
         background: var(--eco-bg);
         color: var(--eco-text);
       }
-      /* App title */
-      h1, .main .block-container > div:first-child h1{
-        font-weight:800;
-        letter-spacing:.2px;
-      }
-      /* Eco header band */
-      .eco-hero{
-        background: linear-gradient(135deg, rgba(46,125,50,.08), rgba(67,160,71,.12));
+      /* Title spacing tweak */
+      .main .block-container { padding-top: 1.2rem !important; }
+
+      /* Hero */
+      .hero{
+        background:
+          radial-gradient(900px 360px at 10% -10%, rgba(126,231,135,.10), transparent),
+          linear-gradient(135deg, #13261E 0%, #0F1E17 100%);
         border:1px solid var(--eco-border);
-        padding:18px 20px;
-        border-radius:16px;
-        margin-bottom:12px;
+        border-radius:18px; padding:22px 20px; margin:8px 0 18px 0;
       }
-      .eco-hero h2{
-        margin:0;
-        font-size:1.2rem;
+      .hero h2{ margin:0 0 6px 0; font-size:1.6rem; font-weight:800; }
+      .hero p{ margin:0 0 12px 0; color:var(--eco-muted); }
+      .cta-row{ display:flex; gap:10px; flex-wrap:wrap }
+      .cta{
+        background:var(--eco-primary); color:#0F1E17; padding:10px 14px;
+        border-radius:10px; font-weight:800; text-decoration:none !important;
       }
-      .eco-hero .sub{
-        color: var(--eco-muted);
-        font-size:.95rem;
-        margin-top:6px;
+      .cta.secondary{
+        background:transparent; color:var(--eco-primary);
+        border:1px solid #2a4; font-weight:700;
       }
+
+      /* Sections / KPIs / Features */
+      .section{ margin: 8px 0 22px 0; padding:18px; border:1px solid var(--eco-border); border-radius:16px; background:var(--eco-card); }
+      .kpi{ text-align:center; border:1px solid var(--eco-border); padding:16px; border-radius:14px; background:#0F1E17; }
+      .kpi .big{ font-size:1.6rem; font-weight:800; line-height:1.2; }
+      .kpi .label{ color:#a6d7b4; font-size:.95rem; }
+      .feature{ border:1px solid var(--eco-border); padding:16px; border-radius:14px; background:#0F1E17; height:100%; }
+      .feature h4{ margin:.2rem 0 .4rem 0; }
 
       /* Guidance card */
       .eco-card{
@@ -56,13 +64,11 @@ def apply_theme():
         border-radius:18px;
         padding:18px 16px;
         margin: 10px 0 18px 0;
-        box-shadow: 0 2px 10px rgba(0,0,0,.03);
+        box-shadow: 0 2px 10px rgba(0,0,0,.15);
       }
-      .eco-head{
-        display:flex; align-items:center; gap:10px; margin-bottom:6px;
-      }
+      .eco-head{ display:flex; align-items:center; gap:10px; margin-bottom:6px; }
       .eco-emoji{ font-size:1.4rem; }
-      .eco-title{ font-weight:700; }
+      .eco-title{ font-weight:800; }
       .eco-badge{
         margin-left:auto;
         background: var(--eco-pill);
@@ -72,18 +78,10 @@ def apply_theme():
         padding:4px 10px;
         font-size:.85rem;
       }
-      .eco-meta{
-        margin: 6px 0 8px 0;
-        color: var(--eco-muted);
-        font-size:.95rem;
-      }
-      .eco-section-title{
-        font-weight:700; margin-top:8px; margin-bottom:4px;
-      }
+      .eco-meta{ margin: 6px 0 8px 0; color: var(--eco-muted); font-size:.95rem; }
+      .eco-section-title{ font-weight:800; margin-top:8px; margin-bottom:4px; }
       .eco-list{ margin:0 0 4px 0; padding-left:18px;}
       .eco-list li{ margin: 2px 0; }
-
-      /* Chips row */
       .chip-row{ display:flex; flex-wrap:wrap; gap:8px; margin: 6px 0 2px 0; }
       .chip{
         background: var(--eco-pill);
@@ -93,23 +91,21 @@ def apply_theme():
         padding:4px 10px;
         font-size:.88rem;
       }
-
-      /* Link buttons row */
       .eco-links{ display:flex; gap:10px; margin-top:10px; flex-wrap:wrap; }
       .eco-link{
         border-radius:10px;
         padding:8px 12px;
         border:1px solid var(--eco-border);
-        background: #fff;
+        background: #0F1E17;
         text-decoration:none !important;
         color:var(--eco-primary) !important;
-        font-weight:600;
+        font-weight:700;
       }
       .eco-link:hover{ background: var(--eco-pill); }
 
       /* Debug expanders subtle */
       details{
-        background: rgba(46,125,50,.04);
+        background: rgba(20,48,34,.35);
         border-radius:12px;
         border:1px solid var(--eco-border);
       }
@@ -220,8 +216,6 @@ def show_shibuya_guidance(label: str, count: int = 0):
     info = GUIDE.get(label)
     if not info:
         return
-
-    # Build a pretty card
     st.markdown('<div class="eco-card">', unsafe_allow_html=True)
     st.markdown(f"""
       <div class="eco-head">
@@ -230,34 +224,25 @@ def show_shibuya_guidance(label: str, count: int = 0):
         <div class="eco-badge">Detected: {count}</div>
       </div>
     """, unsafe_allow_html=True)
-
     if info.get("materials"):
         st.markdown(f'<div class="eco-meta"><strong>Material:</strong> {info["materials"]}</div>', unsafe_allow_html=True)
-
-    # Why separate
     if info.get("why_separate"):
         st.markdown('<div class="eco-section-title">Why separate?</div>', unsafe_allow_html=True)
         st.markdown('<ul class="eco-list">', unsafe_allow_html=True)
         for reason in info["why_separate"]:
             st.markdown(f'<li>{reason}</li>', unsafe_allow_html=True)
         st.markdown('</ul>', unsafe_allow_html=True)
-
-    # Steps
     st.markdown('<div class="eco-section-title">How to put out</div>', unsafe_allow_html=True)
     st.markdown('<ul class="eco-list">', unsafe_allow_html=True)
     for step in info["steps"]:
         st.markdown(f'<li>{step}</li>', unsafe_allow_html=True)
     st.markdown('</ul>', unsafe_allow_html=True)
-
-    # Recycles to (chips)
     if info.get("recycles_to"):
         st.markdown('<div class="eco-section-title">Commonly recycled into</div>', unsafe_allow_html=True)
         st.markdown('<div class="chip-row">', unsafe_allow_html=True)
         for item in info["recycles_to"]:
             st.markdown(f'<div class="chip">{item}</div>', unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
-
-    # Facts
     facts = info.get("facts", [])
     if facts:
         st.markdown('<div class="eco-section-title">Did you know?</div>', unsafe_allow_html=True)
@@ -269,13 +254,10 @@ def show_shibuya_guidance(label: str, count: int = 0):
         for fact in facts:
             _guide_link(fact["url"], "Learn more")
         st.markdown('</div>', unsafe_allow_html=True)
-
-    # Official page link
     st.markdown('<div class="eco-links">', unsafe_allow_html=True)
     _guide_link(info["link"], "Official Shibuya guidance")
     st.markdown('</div>', unsafe_allow_html=True)
-
-    st.markdown('</div>', unsafe_allow_html=True)  # end card
+    st.markdown('</div>', unsafe_allow_html=True)
 
 # -------------------------
 # Helpers
@@ -357,13 +339,24 @@ def _closest_size(target: int, options: list[int]) -> int:
     return min(options, key=lambda x: abs(x - target))
 
 # -------------------------
-# UI
+# UI (Header + Hero + KPIs + Features)
 # -------------------------
-st.title("♻️ When AI Sees Litter — Shibuya")
+logo_col, title_col = st.columns([1, 6], vertical_alignment="center")
+with logo_col:
+    if os.path.exists("logo.png"):
+        st.image("logo.png", caption=None, use_column_width=False, width=140)
+with title_col:
+    st.title("♻️ When AI Sees Litter — Shibuya")
+
 st.markdown("""
-<div class="eco-hero">
-  <h2>Real-time garbage recognition</h2>
-  <div class="sub">Detect PET bottles, cans, and caps. Get Shibuya-specific disposal guidance and see what recycling turns them into.</div>
+<div class="hero">
+  <h2>Save the world! <span style="color:#7EE787">Sustainable</span> litter detection for Shibuya.</h2>
+  <p>Detect PET bottles, cans, and caps — then teach correct sorting with official city guidance and
+     show what recycling turns them into (clothes, bottles, pallets, and more).</p>
+  <div class="cta-row">
+    <a class="cta" href="#run">Try Webcam</a>
+    <a class="cta secondary" href="#learn">How it works</a>
+  </div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -373,73 +366,92 @@ with st.expander("Model source"):
     if os.path.exists(CACHED_PATH):
         st.write(f"Cached path: {CACHED_PATH}  size: {os.path.getsize(CACHED_PATH)/1e6:.2f} MB")
 
-# Simple defaults so the top stays clean
-_conf_default = 0.25
-_iou_default = 0.45
-_imgsz_default = _closest_size(DEFAULT_IMGSZ, IMGSZ_OPTIONS)
-_bottle_min_default = 0.60
-_can_min_default = 0.55
-_cap_min_default = 0.65
-_min_area_pct_default = 0.3
-_tta_default = False
+st.markdown('<div class="section">', unsafe_allow_html=True)
+c1,c2,c3,c4 = st.columns(4)
+with c1: st.markdown('<div class="kpi"><div class="big">12m t</div><div class="label">Waste avoided*</div></div>', unsafe_allow_html=True)
+with c2: st.markdown('<div class="kpi"><div class="big">25k+</div><div class="label">Predictions</div></div>', unsafe_allow_html=True)
+with c3: st.markdown('<div class="kpi"><div class="big">73.8%</div><div class="label">Can-to-can (JP)</div></div>', unsafe_allow_html=True)
+with c4: st.markdown('<div class="kpi"><div class="big">95%</div><div class="label">Energy saved (Al)</div></div>', unsafe_allow_html=True)
+st.caption("*) demo numbers / examples")
+st.markdown('</div>', unsafe_allow_html=True)
 
-# Advanced panel for power users
+st.markdown('<div id="learn" class="section">', unsafe_allow_html=True)
+f1,f2,f3 = st.columns(3)
+with f1: st.markdown('<div class="feature">🌿<h4>Cleaner Streets</h4><p>Cut litter & contamination with instant guidance in Japanese municipalities.</p></div>', unsafe_allow_html=True)
+with f2: st.markdown('<div class="feature">♻️<h4>High-value Recycling</h4><p>Separate PET vs PP/PE caps so bottles can go bottle-to-bottle.</p></div>', unsafe_allow_html=True)
+with f3: st.markdown('<div class="feature">📊<h4>Impact Insights</h4><p>Track items guided, diversion rate, and learning engagement.</p></div>', unsafe_allow_html=True)
+st.markdown('</div>', unsafe_allow_html=True)
+
+st.markdown('---')
+
+# -------------------------
+# Defaults / Advanced settings
+# -------------------------
+
+# We want Minimum filters as AUTO default
+_MIN_CONF = 0.05
+_MIN_IOU = 0.10
+_MIN_IMGSZ = _closest_size(DEFAULT_IMGSZ, IMGSZ_OPTIONS)
+_MIN_BOTTLE = 0.00
+_MIN_CAN = 0.00
+_MIN_CAP = 0.00
+_MIN_AREA_PCT = 0.0
+_MIN_TTA = False
+
+# Advanced panel (users can change)
 with st.expander("Advanced settings (optional)"):
     preset = st.radio(
         "Preset",
         ["Minimum filters", "Recommended", "Strict"],
-        index=1,
+        index=0,  # Default to Minimum filters when opened
         horizontal=True
     )
-    # Start from defaults then apply preset
-    conf = _conf_default
-    iou = _iou_default
-    imgsz = _imgsz_default
-    bottle_min = _bottle_min_default
-    can_min = _can_min_default
-    cap_min = _cap_min_default
-    min_area_pct = _min_area_pct_default
-    tta = _tta_default
 
-    if preset == "Minimum filters":
-        conf = 0.05
-        iou = 0.10
-        bottle_min = 0.00
-        can_min = 0.00
-        cap_min = 0.00
-        min_area_pct = 0.0
+    # Start from Minimum filters
+    conf = _MIN_CONF
+    iou = _MIN_IOU
+    imgsz = _MIN_IMGSZ
+    bottle_min = _MIN_BOTTLE
+    can_min = _MIN_CAN
+    cap_min = _MIN_CAP
+    min_area_pct = _MIN_AREA_PCT
+    tta = _MIN_TTA
+
+    if preset == "Recommended":
+        conf = 0.25; iou = 0.45
+        bottle_min = 0.60; can_min = 0.55; cap_min = 0.65
+        min_area_pct = 0.3; tta = False
     elif preset == "Strict":
-        conf = 0.35
-        iou = 0.50
-        bottle_min = 0.70
-        can_min = 0.70
-        cap_min = 0.75
-        min_area_pct = 0.5
+        conf = 0.35; iou = 0.50
+        bottle_min = 0.70; can_min = 0.70; cap_min = 0.75
+        min_area_pct = 0.5; tta = False
 
-    # Fine tuning
+    # Fine tuning sliders
     conf = st.slider("Base confidence", 0.05, 0.95, conf, 0.01, help="Model confidence threshold.")
     iou  = st.slider("IoU", 0.10, 0.90, iou, 0.01)
     imgsz = st.select_slider("Inference image size", options=IMGSZ_OPTIONS, value=_closest_size(int(imgsz), IMGSZ_OPTIONS))
-
     c1, c2, c3, c4 = st.columns(4)
     bottle_min = c1.slider("Min conf: Bottle", 0.0, 1.0, bottle_min, 0.01)
     can_min    = c2.slider("Min conf: Can",    0.0, 1.0, can_min, 0.01)
     cap_min    = c3.slider("Min conf: Cap",    0.0, 1.0, cap_min, 0.01)
     min_area_pct = c4.slider("Min box area (%)", 0.0, 5.0, min_area_pct, 0.1, help="Ignore tiny boxes by percent of image area.")
-
     tta = st.toggle("Test time augmentation", value=tta, help="Slower. Sometimes reduces false positives.")
 
-# If Advanced was not opened, use recommended defaults
+# If Advanced wasn't opened, those variables won't exist; default to MINIMUM FILTERS
 if "conf" not in locals():
-    conf = _conf_default
-    iou = _iou_default
-    imgsz = _imgsz_default
-    bottle_min = _bottle_min_default
-    can_min = _can_min_default
-    cap_min = _cap_min_default
-    min_area_pct = _min_area_pct_default
-    tta = _tta_default
+    conf = _MIN_CONF
+    iou = _MIN_IOU
+    imgsz = _MIN_IMGSZ
+    bottle_min = _MIN_BOTTLE
+    can_min = _MIN_CAN
+    cap_min = _MIN_CAP
+    min_area_pct = _MIN_AREA_PCT
+    tta = _MIN_TTA
 
+# -------------------------
+# Input & Inference
+# -------------------------
+st.markdown('<div id="run"></div>', unsafe_allow_html=True)
 src = st.radio("Input source", ["Upload image", "Webcam"], horizontal=True)
 image = None
 if src == "Upload image":
@@ -462,9 +474,6 @@ if st.button("Load model"):
         st.info(f"Using fallback CLASS_NAMES: {CLASS_NAMES}")
     st.success("Model ready.")
 
-# -------------------------
-# Inference
-# -------------------------
 if image is not None:
     st.image(image, caption="Input", use_container_width=True)
     if st.button("Run detection"):
@@ -479,7 +488,6 @@ if image is not None:
             boxes  = pred.boxes.xyxy.cpu().numpy()
             scores = pred.boxes.conf.cpu().numpy()
             clsi   = pred.boxes.cls.cpu().numpy().astype(int)
-
             names_map = _get_names_map(pred, model)
 
             per_class_min = {
@@ -506,16 +514,14 @@ if image is not None:
 
                 # Extra filters
                 thr = per_class_min.get(name, conf)
-                if s < thr:
-                    continue
-                if area < min_area:
-                    continue
+                if s < thr:        continue
+                if area < min_area: continue
 
                 dets.append({"xyxy": [x1, y1, x2, y2], "class_id": c, "class_name": name, "score": s})
                 counts[name] = counts.get(name, 0) + 1
 
             if not dets:
-                st.info("All detections were filtered by thresholds. Try lowering per class thresholds or min box area.")
+                st.info("All detections were filtered by thresholds. Try lowering per-class thresholds or min box area.")
             else:
                 vis_img = draw_boxes(bgr, dets)
                 st.subheader("Detections")
@@ -528,10 +534,9 @@ if image is not None:
                     with st.expander("Counts (debug)", expanded=False):
                         st.bar_chart(pd.Series(counts).sort_values(ascending=False))
 
-                # Shibuya guidance cards
+                # Guidance cards
                 detected_labels = sorted({d["class_name"] for d in dets})
                 guide_labels = [lbl for lbl in detected_labels if lbl in GUIDE]
-
                 if guide_labels:
                     st.subheader("Disposal instructions for Shibuya")
                     for lbl in guide_labels:
