@@ -315,7 +315,7 @@ with logo_col:
     if os.path.exists("logo.png"):
         st.image("logo.png", use_container_width=True)
 with title_col:
-    st.markdown("<div style='font-weight:800; font-size:1.6rem; line-height:1.2'>When AI Sees Litter — Shibuya</div>", unsafe_allow_html=True)
+    st.markdown("<div style='font-weight:800; font-size:1.6rem; line-height:1.2'>When AI Sees Litter </div>", unsafe_allow_html=True)
 
 # City selection (mock for now)
 st.markdown('<div class="section">', unsafe_allow_html=True)
