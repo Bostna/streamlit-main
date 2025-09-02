@@ -8,96 +8,177 @@ from ultralytics import YOLO
 
 st.set_page_config(page_title="When AI Sees Litter — Shibuya", page_icon="♻️", layout="wide")
 
-# ================= THEME (Light/Dark) =================
-def apply_theme(mode: str):
-    # palettes
-    if mode == "Eco Dark":
-        vars = dict(
-            primary="#7EE787", accent="#44BD87",
-            bg="#0F1E17", card="#12251C", text="#EAF7EF", muted="#bde7c6",
-            pill="#143022", border="rgba(255,255,255,.08)",
-            hero_grad_1="#13261E", hero_grad_2="#0F1E17", debug_bg="rgba(20,48,34,.35)"
-        )
-    else:  # Eco Light (default)
-        vars = dict(
-            primary="#2E7D32", accent="#43A047",
-            bg="#F6FFF8", card="#FFFFFF", text="#0B3D2E", muted="#4F6F5A",
-            pill="#E8F5E9", border="#DCEFE3",
-            hero_grad_1="#EAF7EF", hero_grad_2="#F6FFF8", debug_bg="rgba(46,125,50,.06)"
-        )
-
-    st.markdown(f"""
+# ======================= THEME (Light agriculture vibe) =======================
+def apply_agri_theme():
+    st.markdown("""
     <style>
-      :root{{
-        --eco-primary:{vars['primary']};
-        --eco-accent:{vars['accent']};
-        --eco-bg:{vars['bg']};
-        --eco-card:{vars['card']};
-        --eco-text:{vars['text']};
-        --eco-muted:{vars['muted']};
-        --eco-pill:{vars['pill']};
-        --eco-border:{vars['border']};
-      }}
-      html, body, [data-testid="stAppViewContainer"]{{ background: var(--eco-bg); color: var(--eco-text); }}
-      .main .block-container {{ padding-top: 1.0rem !important; }}
+      :root{
+        --agri-primary:#79C16D;       /* fresh leaf green */
+        --agri-primary-dark:#4FA25A;  /* deeper leaf green */
+        --agri-accent:#CFEAC0;        /* soft lime highlight */
+        --agri-bg:#FAFEF6;            /* warm off-white/green */
+        --agri-card:#FFFFFF;          /* pure white cards */
+        --agri-text:#0F2A1C;          /* deep green text */
+        --agri-muted:#6F8B7A;         /* muted copy */
+        --agri-pill:#EEF7E9;          /* pill bg */
+        --agri-border:#E5EFE3;        /* subtle borders */
+      }
+      html, body, [data-testid="stAppViewContainer"]{
+        background: var(--agri-bg);
+        color: var(--agri-text);
+      }
+      .main .block-container{ padding-top: 1rem !important; }
+
+      /* Top bar note (optional) */
+      .topnote{
+        background: linear-gradient(180deg, rgba(121,193,109,.12), rgba(121,193,109,0));
+        border:1px solid var(--agri-border);
+        border-radius: 0 0 16px 16px;
+        padding: 8px 14px;
+        text-align:center;
+        color: var(--agri-muted);
+        font-size:.92rem;
+        margin-bottom: 8px;
+      }
 
       /* Hero */
-      .hero{{
+      .hero{
         background:
-          radial-gradient(900px 360px at 10% -10%, color-mix(in srgb, var(--eco-primary) 20%, transparent), transparent),
-          linear-gradient(135deg, {vars['hero_grad_1']} 0%, {vars['hero_grad_2']} 100%);
-        border:1px solid var(--eco-border);
-        border-radius:18px; padding:22px 20px; margin:8px 0 18px 0;
-      }}
-      .hero h2{{ margin:0 0 6px 0; font-size:1.6rem; font-weight:800; }}
-      .hero p{{ margin:0 0 12px 0; color:var(--eco-muted); }}
-      .cta-row{{ display:flex; gap:10px; flex-wrap:wrap }}
-      .cta{{
-        background:var(--eco-primary); color:var(--eco-bg); padding:10px 14px;
-        border-radius:10px; font-weight:800; text-decoration:none !important;
-      }}
-      .cta.secondary{{
-        background:transparent; color:var(--eco-primary);
-        border:1px solid color-mix(in srgb, var(--eco-primary) 40%, transparent);
-        font-weight:700;
-      }}
+          radial-gradient(700px 280px at 10% -20%, rgba(121,193,109,.18), transparent),
+          linear-gradient(135deg, #FFFFFF 0%, #F7FBF2 100%);
+        border:1px solid var(--agri-border);
+        border-radius:24px;
+        padding:26px 22px;
+        margin: 6px 0 18px 0;
+      }
+      .hero h1{
+        margin:0 0 6px 0;
+        font-weight:900; letter-spacing:.2px;
+        font-size:2.0rem;
+      }
+      .hero p{
+        margin:0 0 14px 0; color: var(--agri-muted);
+      }
+      .pill{
+        display:inline-block;
+        background: var(--agri-pill);
+        padding: 2px 10px 4px 10px;
+        border-radius: 999px;
+        color: var(--agri-primary-dark);
+        border:1px solid var(--agri-border);
+      }
+      .cta-row{ display:flex; gap:10px; flex-wrap:wrap }
+      .cta{
+        background: var(--agri-primary);
+        color: #fff;
+        padding:10px 14px;
+        border-radius: 999px;
+        font-weight:800;
+        text-decoration:none !important;
+        border:1px solid color-mix(in srgb, var(--agri-primary) 60%, #fff);
+      }
+      .cta.secondary{
+        background: #fff;
+        color: var(--agri-primary-dark);
+        border:1px solid var(--agri-border);
+      }
+      .cta:hover{ filter: brightness(0.97); }
 
-      /* Sections / KPIs / Features */
-      .section{{ margin: 8px 0 22px 0; padding:18px; border:1px solid var(--eco-border); border-radius:16px; background:var(--eco-card); }}
-      .kpi{{ text-align:center; border:1px solid var(--eco-border); padding:16px; border-radius:14px; background:color-mix(in srgb, var(--eco-card) 80%, var(--eco-bg) 20%); }}
-      .kpi .big{{ font-size:1.6rem; font-weight:800; line-height:1.2; }}
-      .kpi .label{{ color:var(--eco-muted); font-size:.95rem; }}
-      .feature{{ border:1px solid var(--eco-border); padding:16px; border-radius:14px; background:color-mix(in srgb, var(--eco-card) 80%, var(--eco-bg) 20%); height:100%; }}
-      .feature h4{{ margin:.2rem 0 .4rem 0; }}
-      .footnote{{ text-align:center; color:var(--eco-muted); margin-top:8px; }}
+      /* Section shells */
+      .section{
+        margin: 10px 0 22px 0;
+        padding:18px;
+        background: var(--agri-card);
+        border:1px solid var(--agri-border);
+        border-radius: 20px;
+      }
+
+      /* KPI cards */
+      .kpi{
+        text-align:center;
+        border:1px solid var(--agri-border);
+        padding:16px;
+        border-radius:18px;
+        background: #FFFFFF;
+        box-shadow: 0 3px 16px rgba(0,0,0,.03);
+      }
+      .kpi .big{ font-size:1.7rem; font-weight:900; line-height:1.2; }
+      .kpi .label{ color: var(--agri-muted); font-size:.95rem; }
+
+      /* Feature cards */
+      .feature{
+        border:1px solid var(--agri-border);
+        padding:16px;
+        border-radius:18px;
+        background:#FFFFFF;
+        height:100%;
+        box-shadow: 0 3px 16px rgba(0,0,0,.03);
+      }
+      .feature h4{ margin:.2rem 0 .4rem 0; }
 
       /* Guidance card */
-      .eco-card{{ background: var(--eco-card); border:1px solid var(--eco-border); border-radius:18px; padding:18px 16px; margin: 10px 0 18px 0; box-shadow: 0 2px 10px rgba(0,0,0,.08); }}
-      .eco-head{{ display:flex; align-items:center; gap:10px; margin-bottom:6px; }}
-      .eco-emoji{{ font-size:1.4rem; }}
-      .eco-title{{ font-weight:800; }}
-      .eco-badge{{ margin-left:auto; background: var(--eco-pill); color: var(--eco-primary); border:1px solid var(--eco-border); border-radius:999px; padding:4px 10px; font-size:.85rem; }}
-      .eco-meta{{ margin: 6px 0 8px 0; color: var(--eco-muted); font-size:.95rem; }}
-      .eco-section-title{{ font-weight:800; margin-top:8px; margin-bottom:4px; }}
-      .eco-list{{ margin:0 0 4px 0; padding-left:18px; }}
-      .eco-list li{{ margin: 2px 0; }}
-      .chip-row{{ display:flex; flex-wrap:wrap; gap:8px; margin: 6px 0 2px 0; }}
-      .chip{{ background: var(--eco-pill); color: var(--eco-primary); border:1px solid var(--eco-border); border-radius:999px; padding:4px 10px; font-size:.88rem; }}
-      .eco-links{{ display:flex; gap:10px; margin-top:10px; flex-wrap:wrap; }}
-      .eco-link{{ border-radius:10px; padding:8px 12px; border:1px solid var(--eco-border); background: transparent; text-decoration:none !important; color:var(--eco-primary) !important; font-weight:700; }}
-      .eco-link:hover{{ background: var(--eco-pill); }}
+      .eco-card{
+        background: #FFFFFF;
+        border:1px solid var(--agri-border);
+        border-radius:22px;
+        padding:18px 16px;
+        margin: 10px 0 18px 0;
+        box-shadow: 0 3px 16px rgba(0,0,0,.04);
+      }
+      .eco-head{ display:flex; align-items:center; gap:10px; margin-bottom:6px; }
+      .eco-emoji{ font-size:1.4rem; }
+      .eco-title{ font-weight:800; }
+      .eco-badge{
+        margin-left:auto;
+        background: var(--agri-pill);
+        color: var(--agri-primary-dark);
+        border:1px solid var(--agri-border);
+        border-radius:999px;
+        padding:4px 10px;
+        font-size:.85rem;
+      }
+      .eco-meta{ margin: 6px 0 8px 0; color: var(--agri-muted); font-size:.95rem; }
+      .eco-section-title{ font-weight:800; margin-top:8px; margin-bottom:4px; }
+      .eco-list{ margin:0 0 4px 0; padding-left:18px;}
+      .eco-list li{ margin: 2px 0; }
+      .chip-row{ display:flex; flex-wrap:wrap; gap:8px; margin: 6px 0 2px 0; }
+      .chip{
+        background: var(--agri-pill);
+        color: var(--agri-primary-dark);
+        border:1px solid var(--agri-border);
+        border-radius:999px;
+        padding:4px 10px;
+        font-size:.88rem;
+      }
+      .eco-links{ display:flex; gap:10px; margin-top:10px; flex-wrap:wrap; }
+      .eco-link{
+        border-radius:999px;
+        padding:8px 12px;
+        border:1px solid var(--agri-border);
+        background: #fff;
+        text-decoration:none !important;
+        color: var(--agri-primary-dark) !important;
+        font-weight:700;
+      }
+      .eco-link:hover{ background: var(--agri-pill); }
 
-      /* Debug expanders subtle */
-      details{{ background: {vars['debug_bg']}; border-radius:12px; border:1px solid var(--eco-border); }}
-      summary{{ padding:8px 10px; }}
+      /* Expanders = light FAQ style */
+      details{
+        background: #FFFFFF;
+        border-radius:16px;
+        border:1px solid var(--agri-border);
+      }
+      summary{ padding:8px 10px; }
+
+      /* Subtle hr */
+      .soft-hr{ height:1px; background: var(--agri-border); margin: 8px 0 16px 0; }
+      .footnote{ text-align:center; color:var(--agri-muted); margin-top:8px; }
     </style>
     """, unsafe_allow_html=True)
 
-# Sidebar theme toggle (set BEFORE injecting CSS)
-theme_mode = st.sidebar.selectbox("Theme", ["Eco Light", "Eco Dark"], index=0)
-apply_theme(theme_mode)
+apply_agri_theme()
 
-# ------------------------- Config -------------------------
+# ======================= Config & Model =======================
 MODEL_URL     = os.getenv("MODEL_URL", "https://raw.githubusercontent.com/Bellzum/streamlit-main/main/new_taco1.pt")
 LOCAL_MODEL   = os.getenv("LOCAL_MODEL", "best.pt")
 CACHED_PATH   = "/tmp/models/best.pt"
@@ -106,7 +187,7 @@ DEFAULT_IMGSZ = int(os.getenv("IMGSZ", "640"))
 CLASS_NAMES   = ["Clear plastic bottle", "Drink can", "Plastic bottle cap"]
 IMGSZ_OPTIONS = [320, 416, 512, 640, 800, 960, 1280]
 
-# --------- Shibuya disposal guidance (materials & uses) ----------
+# ======================= Guidance content =======================
 SHIBUYA_GUIDE_URL = "https://www.city.shibuya.tokyo.jp/contents/living-in-shibuya/en/daily/garbage.html"
 
 GUIDE = {
@@ -172,8 +253,7 @@ def _guide_link(url: str, label: str):
 
 def show_shibuya_guidance(label: str, count: int = 0):
     info = GUIDE.get(label)
-    if not info:
-        return
+    if not info: return
     st.markdown('<div class="eco-card">', unsafe_allow_html=True)
     st.markdown(f"""
       <div class="eco-head">
@@ -217,7 +297,7 @@ def show_shibuya_guidance(label: str, count: int = 0):
     st.markdown('</div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
-# ------------------------- Helpers -------------------------
+# ======================= Helpers =======================
 def _download_file(url: str, dest: str):
     os.makedirs(os.path.dirname(dest), exist_ok=True)
     try:
@@ -252,10 +332,8 @@ def _ensure_model_path() -> str:
     return LOCAL_MODEL
 
 def _cache_key_for(path: str) -> str:
-    try:
-        return f"{path}:{os.path.getmtime(path)}:{os.path.getsize(path)}"
-    except Exception:
-        return path
+    try: return f"{path}:{os.path.getmtime(path)}:{os.path.getsize(path)}"
+    except Exception: return path
 
 @st.cache_resource(show_spinner=True)
 def _load_model_cached(path: str, key: str):
@@ -274,10 +352,10 @@ def draw_boxes(bgr, dets):
     out = bgr.copy()
     for d in dets:
         x1, y1, x2, y2 = map(int, d["xyxy"])
-        cv2.rectangle(out, (x1, y1), (x2, y2), (0, 255, 0), 2)
+        cv2.rectangle(out, (x1, y1), (x2, y2), (28,160,78), 2)  # green that matches theme
         label = f'{d["class_name"]} {d["score"]:.2f}'
         y = max(y1 - 7, 7)
-        cv2.putText(out, label, (x1, y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1, cv2.LINE_AA)
+        cv2.putText(out, label, (x1, y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (28,160,78), 1, cv2.LINE_AA)
     return Image.fromarray(out[:, :, ::-1])
 
 def _get_names_map(pred, model):
@@ -293,22 +371,25 @@ def _get_names_map(pred, model):
 def _closest_size(target: int, options: list[int]) -> int:
     return min(options, key=lambda x: abs(x - target))
 
-# ------------------------- UI (Header + Hero + Sections) -------------------------
-logo_col, title_col = st.columns([1, 6], vertical_alignment="center")
+# ======================= UI (Header + Hero + Sections) =======================
+# Optional top note
+st.markdown('<div class="topnote">Helping Shibuya sort smarter — PET bottles, cans, and caps.</div>', unsafe_allow_html=True)
+
+logo_col, title_col, cta_col = st.columns([1, 6, 2], vertical_alignment="center")
 with logo_col:
     if os.path.exists("logo.png"):
-        # FIX: removed deprecated use_column_width
-        st.image("logo.png", width=140)
+        st.image("logo.png", width=120)  # no deprecated arg
 with title_col:
-    st.title("♻️ When AI Sees Litter — Shibuya")
+    st.markdown("<div style='font-weight:800; font-size:1.2rem;'>When AI Sees Litter — Shibuya</div>", unsafe_allow_html=True)
+with cta_col:
+    st.markdown("<div style='text-align:right;'><a class='cta' href='#run'>Try Webcam</a></div>", unsafe_allow_html=True)
 
-st.markdown("""
+st.markdown(f"""
 <div class="hero">
-  <h2>Save the world! <span style="color:var(--eco-primary)">Sustainable</span> litter detection for Shibuya.</h2>
-  <p>Detect PET bottles, cans, and caps — then teach correct sorting with official city guidance and
-     show what recycling turns them into (clothes, bottles, pallets, and more).</p>
+  <h1>Your Sustainable Sorting <span class="pill">Begins Here</span></h1>
+  <p>Detect PET bottles, cans, and caps — then follow Shibuya's guidance and learn what recycling turns them into (clothes, bottles, pallets, and more).</p>
   <div class="cta-row">
-    <a class="cta" href="#run">Try Webcam</a>
+    <a class="cta" href="#run">Use Webcam</a>
     <a class="cta secondary" href="#learn">How it works</a>
   </div>
 </div>
@@ -320,7 +401,7 @@ with st.expander("Model source"):
     if os.path.exists(CACHED_PATH):
         st.write(f"Cached path: {CACHED_PATH}  size: {os.path.getsize(CACHED_PATH)/1e6:.2f} MB")
 
-# KPIs
+# KPI row
 st.markdown('<div class="section">', unsafe_allow_html=True)
 c1,c2,c3,c4 = st.columns(4)
 with c1: st.markdown('<div class="kpi"><div class="big">12m t</div><div class="label">Waste avoided</div></div>', unsafe_allow_html=True)
@@ -330,18 +411,18 @@ with c4: st.markdown('<div class="kpi"><div class="big">95%</div><div class="lab
 st.markdown('<div class="footnote">Demo numbers for illustration</div>', unsafe_allow_html=True)
 st.markdown('</div>', unsafe_allow_html=True)
 
-# Features
+# Feature grid
 st.markdown('<div id="learn" class="section">', unsafe_allow_html=True)
 f1,f2,f3 = st.columns(3)
-with f1: st.markdown('<div class="feature">🌿<h4>Cleaner Streets</h4><p>Cut litter & contamination with instant guidance in Japanese municipalities.</p></div>', unsafe_allow_html=True)
+with f1: st.markdown('<div class="feature">🌱<h4>Cleaner Streets</h4><p>Instant guidance reduces litter & contamination in public bins.</p></div>', unsafe_allow_html=True)
 with f2: st.markdown('<div class="feature">♻️<h4>High-value Recycling</h4><p>Separate PET vs PP/PE caps so bottles can go bottle-to-bottle.</p></div>', unsafe_allow_html=True)
-with f3: st.markdown('<div class="feature">📊<h4>Impact Insights</h4><p>Track items guided, diversion rate, and learning engagement.</p></div>', unsafe_allow_html=True)
+with f3: st.markdown('<div class="feature">📈<h4>Impact Insights</h4><p>Track items guided, diversion rate, and learning engagement.</p></div>', unsafe_allow_html=True)
 st.markdown('</div>', unsafe_allow_html=True)
 
-st.markdown('---')
+st.markdown('<div class="soft-hr"></div>', unsafe_allow_html=True)
 
-# ------------------------- Defaults / Advanced settings -------------------------
-# Auto default to Minimum filters (even if Advanced isn't opened)
+# ======================= Defaults / Advanced settings =======================
+# Minimum filters as auto default
 _MIN_CONF = 0.05
 _MIN_IOU = 0.10
 _MIN_IMGSZ = _closest_size(DEFAULT_IMGSZ, IMGSZ_OPTIONS)
@@ -384,7 +465,7 @@ if "conf" not in locals():
     bottle_min = _MIN_BOTTLE; can_min = _MIN_CAN; cap_min = _MIN_CAP
     min_area_pct = _MIN_AREA_PCT; tta = _MIN_TTA
 
-# ------------------------- Input & Inference -------------------------
+# ======================= Input & Inference =======================
 st.markdown('<div id="run"></div>', unsafe_allow_html=True)
 src = st.radio("Input source", ["Upload image", "Webcam"], horizontal=True)
 image = None
@@ -439,6 +520,7 @@ if image is not None:
                     name = CLASS_NAMES[c] if 0 <= c < len(CLASS_NAMES) else str(c)
                 s = float(scores[i])
 
+                # Filters
                 if s < per_class_min.get(name, conf):   continue
                 if area < min_area:                      continue
 
@@ -452,7 +534,7 @@ if image is not None:
                 st.subheader("Detections")
                 st.image(vis_img, use_container_width=True)
 
-                # Debug panels collapsed by default
+                # Debug panels (tidy)
                 with st.expander("Raw detections (debug)", expanded=False):
                     st.dataframe(pd.DataFrame(dets))
                 if counts:
