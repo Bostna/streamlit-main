@@ -11,17 +11,17 @@ st.set_page_config(page_title="TACO Detect", page_icon="♻️", layout="wide")
 # -------------------------
 # Config
 # -------------------------
-MODEL_URL    = os.getenv("MODEL_URL", "https://raw.githubusercontent.com/Bellzum/streamlit-main/main/new_taco1.pt")
-LOCAL_MODEL  = os.getenv("LOCAL_MODEL", "best.pt")
-CACHED_PATH  = "/tmp/models/best.pt"
+MODEL_URL     = os.getenv("MODEL_URL", "https://raw.githubusercontent.com/Bellzum/streamlit-main/main/new_taco1.pt")
+LOCAL_MODEL   = os.getenv("LOCAL_MODEL", "best.pt")
+CACHED_PATH   = "/tmp/models/best.pt"
 DEFAULT_IMGSZ = int(os.getenv("IMGSZ", "640"))
 
 # Fallback names if checkpoint has none
-CLASS_NAMES = ["Clear plastic bottle", "Drink can", "Styrofoam piece"]
+CLASS_NAMES   = ["Clear plastic bottle", "Drink can", "Plastic bottle cap"]
 IMGSZ_OPTIONS = [320, 416, 512, 640, 800, 960, 1280]
 
 # -------------------------
-# Shibuya disposal guidance
+# Shibuya disposal guidance + facts
 # -------------------------
 SHIBUYA_GUIDE_URL = "https://www.city.shibuya.tokyo.jp/contents/living-in-shibuya/en/daily/garbage.html"
 
@@ -36,6 +36,18 @@ GUIDE = {
             "Put PET bottles in a transparent bag for PET.",
             "Put caps and labels with Plastics."
         ],
+        "facts": [
+            {
+                # PET bottles are recycled into new bottles, sheets, and fiber for clothing like uniforms and bags
+                "text": "In Japan, used PET bottles become new bottles, sheet products, and fibers for clothing such as uniforms and bags.",
+                "url": "https://www.petbottle-rec.gr.jp/qanda/sec7.html"
+            },
+            {
+                # Bottle-to-bottle is common in Japan
+                "text": "Bottle-to-bottle recycling is widely implemented in Japan.",
+                "url": "https://www.suntory.com/csr/story/003/"
+            }
+        ],
         "link": SHIBUYA_GUIDE_URL,
     },
     "Drink can": {
@@ -45,15 +57,29 @@ GUIDE = {
             "Rinse the can.",
             "Put cans in a transparent bag for cans."
         ],
+        "facts": [],
         "link": SHIBUYA_GUIDE_URL,
     },
-    "Styrofoam piece": {
-        "title": "Styrofoam (plastic)",
-        "emoji": "📦",
+    "Plastic bottle cap": {
+        "title": "Plastic bottle cap (plastics)",
+        "emoji": "🔘",
         "steps": [
-            "If clean, put with Plastics in a transparent bag.",
-            "If too dirty or cannot wash, dispose as burnable.",
-            "Very large pieces may be large-sized trash. Check first."
+            "Remove from the bottle.",
+            "If dirty, rinse quickly.",
+            "Put caps with Plastics in a transparent bag.",
+            "Do not put caps with the PET-bottle bag."
+        ],
+        "facts": [
+            {
+                # Shibuya note: caps are plastic, not PET
+                "text": "Shibuya treats caps and labels as Plastics, separate from PET bottles.",
+                "url": "https://files.city.shibuya.tokyo.jp/assets/12995aba8b194961be709ba879857f70/0cdf099fdfe8456fbac12bb5ad7927e4/assets_kusei_ShibuyaCityNews2206_e.pdf"
+            },
+            {
+                # Cap-to-cap horizontal recycling pilot in Japan
+                "text": "Japan is piloting horizontal recycling for plastic bottle caps (cap-to-cap).",
+                "url": "https://www.sojitz.com/en/news/article/topics-20230112_02.html"
+            }
         ],
         "link": SHIBUYA_GUIDE_URL,
     },
@@ -68,6 +94,21 @@ def show_shibuya_guidance(label: str, count: int = 0):
         st.caption(f"Detected: {count}")
     for step in info["steps"]:
         st.write(f"• {step}")
+
+    # Short educational card
+    facts = info.get("facts", [])
+    if facts:
+        with st.container(border=True):
+            st.markdown("**Did you know?**")
+            for fact in facts:
+                st.write(f"• {fact['text']}")
+            # Combine into a single row of links
+            cols = st.columns(len(facts))
+            for i, fact in enumerate(facts):
+                with cols[i]:
+                    st.link_button("Learn more", fact["url"])
+
+    # Always offer the official Shibuya page
     try:
         st.link_button("Official guidance", info["link"])
     except Exception:
@@ -172,7 +213,7 @@ imgsz = col3.select_slider("Inference image size", options=IMGSZ_OPTIONS, value=
 c1, c2, c3, c4 = st.columns(4)
 bottle_min = c1.slider("Min conf: Bottle", 0.0, 1.0, 0.60, 0.01)
 can_min    = c2.slider("Min conf: Can",    0.0, 1.0, 0.55, 0.01)
-foam_min   = c3.slider("Min conf: Styrofoam", 0.0, 1.0, 0.65, 0.01)
+cap_min    = c3.slider("Min conf: Cap",    0.0, 1.0, 0.65, 0.01)
 min_area_pct = c4.slider("Min box area (%)", 0.0, 5.0, 0.3, 0.1, help="Ignore tiny boxes by area percent of image")
 
 tta = st.toggle("Test-time augmentation (slower, sometimes fewer false positives)", value=False)
@@ -223,7 +264,7 @@ if image is not None:
             per_class_min = {
                 "Clear plastic bottle": bottle_min,
                 "Drink can": can_min,
-                "Styrofoam piece": foam_min
+                "Plastic bottle cap": cap_min
             }
 
             H, W = bgr.shape[:2]
@@ -267,7 +308,7 @@ if image is not None:
                     st.bar_chart(pd.Series(counts).sort_values(ascending=False))
 
                 # -------------------------
-                # Shibuya instructions (only for detected target classes)
+                # Shibuya instructions + facts for detected target classes
                 # -------------------------
                 detected_labels = sorted({d["class_name"] for d in dets})
                 guide_labels = [lbl for lbl in detected_labels if lbl in GUIDE]
