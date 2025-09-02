@@ -38,12 +38,10 @@ GUIDE = {
         ],
         "facts": [
             {
-                # PET bottles are recycled into new bottles, sheets, and fiber for clothing like uniforms and bags
                 "text": "In Japan, used PET bottles become new bottles, sheet products, and fibers for clothing such as uniforms and bags.",
                 "url": "https://www.petbottle-rec.gr.jp/qanda/sec7.html"
             },
             {
-                # Bottle-to-bottle is common in Japan
                 "text": "Bottle-to-bottle recycling is widely implemented in Japan.",
                 "url": "https://www.suntory.com/csr/story/003/"
             }
@@ -71,12 +69,10 @@ GUIDE = {
         ],
         "facts": [
             {
-                # Shibuya note: caps are plastic, not PET
                 "text": "Shibuya treats caps and labels as Plastics, separate from PET bottles.",
                 "url": "https://files.city.shibuya.tokyo.jp/assets/12995aba8b194961be709ba879857f70/0cdf099fdfe8456fbac12bb5ad7927e4/assets_kusei_ShibuyaCityNews2206_e.pdf"
             },
             {
-                # Cap-to-cap horizontal recycling pilot in Japan
                 "text": "Japan is piloting horizontal recycling for plastic bottle caps (cap-to-cap).",
                 "url": "https://www.sojitz.com/en/news/article/topics-20230112_02.html"
             }
@@ -95,20 +91,17 @@ def show_shibuya_guidance(label: str, count: int = 0):
     for step in info["steps"]:
         st.write(f"• {step}")
 
-    # Short educational card
     facts = info.get("facts", [])
     if facts:
         with st.container(border=True):
             st.markdown("**Did you know?**")
             for fact in facts:
                 st.write(f"• {fact['text']}")
-            # Combine into a single row of links
             cols = st.columns(len(facts))
             for i, fact in enumerate(facts):
                 with cols[i]:
                     st.link_button("Learn more", fact["url"])
 
-    # Always offer the official Shibuya page
     try:
         st.link_button("Official guidance", info["link"])
     except Exception:
@@ -204,19 +197,73 @@ with st.expander("Model source"):
     if os.path.exists(CACHED_PATH):
         st.write(f"Cached path: {CACHED_PATH}  size: {os.path.getsize(CACHED_PATH)/1e6:.2f} MB")
 
-col1, col2, col3 = st.columns(3)
-conf = col1.slider("Base confidence", 0.05, 0.95, 0.25, 0.01, help="Passed into the model. We also apply per-class thresholds below.")
-iou  = col2.slider("IoU", 0.10, 0.90, 0.45, 0.01)
-default_imgsz = _closest_size(DEFAULT_IMGSZ, IMGSZ_OPTIONS)
-imgsz = col3.select_slider("Inference image size", options=IMGSZ_OPTIONS, value=default_imgsz)
+# Set simple defaults up front so the top stays clean
+_conf_default = 0.25
+_iou_default = 0.45
+_imgsz_default = _closest_size(DEFAULT_IMGSZ, IMGSZ_OPTIONS)
+_bottle_min_default = 0.60
+_can_min_default = 0.55
+_cap_min_default = 0.65
+_min_area_pct_default = 0.3
+_tta_default = False
 
-c1, c2, c3, c4 = st.columns(4)
-bottle_min = c1.slider("Min conf: Bottle", 0.0, 1.0, 0.60, 0.01)
-can_min    = c2.slider("Min conf: Can",    0.0, 1.0, 0.55, 0.01)
-cap_min    = c3.slider("Min conf: Cap",    0.0, 1.0, 0.65, 0.01)
-min_area_pct = c4.slider("Min box area (%)", 0.0, 5.0, 0.3, 0.1, help="Ignore tiny boxes by area percent of image")
+# Advanced panel to adjust everything only when needed
+with st.expander("Advanced settings (optional)"):
+    preset = st.radio(
+        "Preset",
+        ["Minimum filters", "Recommended", "Strict"],
+        index=1,
+        horizontal=True,
+        help="Choose a starting point. You can still fine tune below."
+    )
+    # Start from defaults then apply preset
+    conf = _conf_default
+    iou = _iou_default
+    imgsz = _imgsz_default
+    bottle_min = _bottle_min_default
+    can_min = _can_min_default
+    cap_min = _cap_min_default
+    min_area_pct = _min_area_pct_default
+    tta = _tta_default
 
-tta = st.toggle("Test-time augmentation (slower, sometimes fewer false positives)", value=False)
+    if preset == "Minimum filters":
+        conf = 0.05
+        iou = 0.10
+        bottle_min = 0.00
+        can_min = 0.00
+        cap_min = 0.00
+        min_area_pct = 0.0
+    elif preset == "Strict":
+        conf = 0.35
+        iou = 0.50
+        bottle_min = 0.70
+        can_min = 0.70
+        cap_min = 0.75
+        min_area_pct = 0.5
+
+    # Now allow fine tuning
+    conf = st.slider("Base confidence", 0.05, 0.95, conf, 0.01, help="Passed into the model. We also apply per-class thresholds.")
+    iou  = st.slider("IoU", 0.10, 0.90, iou, 0.01)
+    imgsz = st.select_slider("Inference image size", options=IMGSZ_OPTIONS, value=_closest_size(int(imgsz), IMGSZ_OPTIONS))
+
+    c1, c2, c3, c4 = st.columns(4)
+    bottle_min = c1.slider("Min conf: Bottle", 0.0, 1.0, bottle_min, 0.01)
+    can_min    = c2.slider("Min conf: Can",    0.0, 1.0, can_min, 0.01)
+    cap_min    = c3.slider("Min conf: Cap",    0.0, 1.0, cap_min, 0.01)
+    min_area_pct = c4.slider("Min box area (%)", 0.0, 5.0, min_area_pct, 0.1, help="Ignore tiny boxes by area percent of image")
+
+    tta = st.toggle("Test-time augmentation (slower, sometimes fewer false positives)", value=tta)
+
+# If the user did not open the Advanced panel, use simple recommended defaults
+if "conf" not in locals():
+    conf = _conf_default
+    iou = _iou_default
+    imgsz = _imgsz_default
+    bottle_min = _bottle_min_default
+    can_min = _can_min_default
+    cap_min = _cap_min_default
+    min_area_pct = _min_area_pct_default
+    tta = _tta_default
 
 src = st.radio("Input source", ["Upload image", "Webcam"], horizontal=True)
 image = None
@@ -260,7 +307,6 @@ if image is not None:
 
             names_map = _get_names_map(pred, model)
 
-            # Per-class thresholds map
             per_class_min = {
                 "Clear plastic bottle": bottle_min,
                 "Drink can": can_min,
@@ -283,7 +329,6 @@ if image is not None:
                     name = CLASS_NAMES[c] if 0 <= c < len(CLASS_NAMES) else str(c)
                 s = float(scores[i])
 
-                # Apply extra filters
                 thr = per_class_min.get(name, conf)
                 if s < thr:
                     continue
@@ -300,15 +345,16 @@ if image is not None:
                 st.subheader("Detections")
                 st.image(vis_img, use_container_width=True)
 
-                st.subheader("Raw detections")
-                st.dataframe(pd.DataFrame(dets))
+                # Debug panels are hidden by default
+                with st.expander("Raw detections (debug)", expanded=False):
+                    st.dataframe(pd.DataFrame(dets))
 
                 if counts:
-                    st.subheader("Counts")
-                    st.bar_chart(pd.Series(counts).sort_values(ascending=False))
+                    with st.expander("Counts (debug)", expanded=False):
+                        st.bar_chart(pd.Series(counts).sort_values(ascending=False))
 
                 # -------------------------
-                # Shibuya instructions + facts for detected target classes
+                # Shibuya instructions + facts
                 # -------------------------
                 detected_labels = sorted({d["class_name"] for d in dets})
                 guide_labels = [lbl for lbl in detected_labels if lbl in GUIDE]
