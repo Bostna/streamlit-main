@@ -21,6 +21,59 @@ CLASS_NAMES = ["Clear plastic bottle", "Drink can", "Styrofoam piece"]
 IMGSZ_OPTIONS = [320, 416, 512, 640, 800, 960, 1280]
 
 # -------------------------
+# Shibuya disposal guidance
+# -------------------------
+SHIBUYA_GUIDE_URL = "https://www.city.shibuya.tokyo.jp/contents/living-in-shibuya/en/daily/garbage.html"
+
+GUIDE = {
+    "Clear plastic bottle": {
+        "title": "PET bottle (resource)",
+        "emoji": "🧴",
+        "steps": [
+            "Remove the cap and label.",
+            "Rinse the bottle.",
+            "Crush it flat.",
+            "Put PET bottles in a transparent bag for PET.",
+            "Put caps and labels with Plastics."
+        ],
+        "link": SHIBUYA_GUIDE_URL,
+    },
+    "Drink can": {
+        "title": "Aluminum or steel can (resource)",
+        "emoji": "🥫",
+        "steps": [
+            "Rinse the can.",
+            "Put cans in a transparent bag for cans."
+        ],
+        "link": SHIBUYA_GUIDE_URL,
+    },
+    "Styrofoam piece": {
+        "title": "Styrofoam (plastic)",
+        "emoji": "📦",
+        "steps": [
+            "If clean, put with Plastics in a transparent bag.",
+            "If too dirty or cannot wash, dispose as burnable.",
+            "Very large pieces may be large-sized trash. Check first."
+        ],
+        "link": SHIBUYA_GUIDE_URL,
+    },
+}
+
+def show_shibuya_guidance(label: str, count: int = 0):
+    info = GUIDE.get(label)
+    if not info:
+        return
+    st.markdown(f"### {info['emoji']} Shibuya disposal: {info['title']}")
+    if count:
+        st.caption(f"Detected: {count}")
+    for step in info["steps"]:
+        st.write(f"• {step}")
+    try:
+        st.link_button("Official guidance", info["link"])
+    except Exception:
+        st.markdown(f"[Official guidance]({info['link']})")
+
+# -------------------------
 # Helpers
 # -------------------------
 def _download_file(url: str, dest: str):
@@ -189,7 +242,7 @@ if image is not None:
                     name = CLASS_NAMES[c] if 0 <= c < len(CLASS_NAMES) else str(c)
                 s = float(scores[i])
 
-                # Apply extra filters to suppress false positives
+                # Apply extra filters
                 thr = per_class_min.get(name, conf)
                 if s < thr:
                     continue
@@ -212,3 +265,16 @@ if image is not None:
                 if counts:
                     st.subheader("Counts")
                     st.bar_chart(pd.Series(counts).sort_values(ascending=False))
+
+                # -------------------------
+                # Shibuya instructions (only for detected target classes)
+                # -------------------------
+                detected_labels = sorted({d["class_name"] for d in dets})
+                guide_labels = [lbl for lbl in detected_labels if lbl in GUIDE]
+
+                if guide_labels:
+                    st.subheader("Disposal instructions for Shibuya")
+                    for lbl in guide_labels:
+                        show_shibuya_guidance(lbl, counts.get(lbl, 0))
+                else:
+                    st.caption("No Shibuya guidance to show for these detections.")
