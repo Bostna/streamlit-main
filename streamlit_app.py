@@ -403,13 +403,15 @@ def _closest_size(target: int, options: list[int]) -> int:
     return min(options, key=lambda x: abs(x - target))
 
 # ======================= HEADER =======================
-logo_col, title_col = st.columns([1, 6], vertical_alignment="center")
+logo_col, title_col = st.columns([3, 5], vertical_alignment="center")  # was [1, 6]
 with logo_col:
     if os.path.exists("logo.png"):
-        st.image("logo.png", width=400)
+        st.image("logo.png", use_container_width=True)  # fill the column width
 with title_col:
-    st.markdown("<div style='font-weight:800; font-size:1.1rem;'>When AI Sees Litter — Shibuya</div>", unsafe_allow_html=True)
-
+    st.markdown(
+        "<div style='font-weight:800; font-size:1.6rem; line-height:1.2'>When AI Sees Litter — Shibuya</div>",
+        unsafe_allow_html=True
+    )
 st.markdown("""
 <div class="hero">
   <h1>Scan litter. Get Shibuya sorting guidance.</h1>
