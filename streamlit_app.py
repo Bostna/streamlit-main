@@ -8,128 +8,105 @@ from ultralytics import YOLO
 
 st.set_page_config(page_title="When AI Sees Litter — Shibuya", page_icon="♻️", layout="wide")
 
-# =============== THEME (CSS) ===============
-def apply_theme():
-    st.markdown("""
+# ================= THEME (Light/Dark) =================
+def apply_theme(mode: str):
+    # palettes
+    if mode == "Eco Dark":
+        vars = dict(
+            primary="#7EE787", accent="#44BD87",
+            bg="#0F1E17", card="#12251C", text="#EAF7EF", muted="#bde7c6",
+            pill="#143022", border="rgba(255,255,255,.08)",
+            hero_grad_1="#13261E", hero_grad_2="#0F1E17", debug_bg="rgba(20,48,34,.35)"
+        )
+    else:  # Eco Light (default)
+        vars = dict(
+            primary="#2E7D32", accent="#43A047",
+            bg="#F6FFF8", card="#FFFFFF", text="#0B3D2E", muted="#4F6F5A",
+            pill="#E8F5E9", border="#DCEFE3",
+            hero_grad_1="#EAF7EF", hero_grad_2="#F6FFF8", debug_bg="rgba(46,125,50,.06)"
+        )
+
+    st.markdown(f"""
     <style>
-      :root{
-        --eco-primary:#7EE787;        /* neon green */
-        --eco-accent:#44BD87;         /* teal-green */
-        --eco-bg:#0F1E17;             /* deep green */
-        --eco-card:#12251C;           /* card green */
-        --eco-text:#EAF7EF;           /* light mint */
-        --eco-muted:#bde7c6;
-        --eco-pill:#143022;
-        --eco-border:rgba(255,255,255,.08);
-      }
-      html, body, [data-testid="stAppViewContainer"]{
-        background: var(--eco-bg);
-        color: var(--eco-text);
-      }
-      /* Title spacing tweak */
-      .main .block-container { padding-top: 1.2rem !important; }
+      :root{{
+        --eco-primary:{vars['primary']};
+        --eco-accent:{vars['accent']};
+        --eco-bg:{vars['bg']};
+        --eco-card:{vars['card']};
+        --eco-text:{vars['text']};
+        --eco-muted:{vars['muted']};
+        --eco-pill:{vars['pill']};
+        --eco-border:{vars['border']};
+      }}
+      html, body, [data-testid="stAppViewContainer"]{{ background: var(--eco-bg); color: var(--eco-text); }}
+      .main .block-container {{ padding-top: 1.0rem !important; }}
 
       /* Hero */
-      .hero{
+      .hero{{
         background:
-          radial-gradient(900px 360px at 10% -10%, rgba(126,231,135,.10), transparent),
-          linear-gradient(135deg, #13261E 0%, #0F1E17 100%);
+          radial-gradient(900px 360px at 10% -10%, color-mix(in srgb, var(--eco-primary) 20%, transparent), transparent),
+          linear-gradient(135deg, {vars['hero_grad_1']} 0%, {vars['hero_grad_2']} 100%);
         border:1px solid var(--eco-border);
         border-radius:18px; padding:22px 20px; margin:8px 0 18px 0;
-      }
-      .hero h2{ margin:0 0 6px 0; font-size:1.6rem; font-weight:800; }
-      .hero p{ margin:0 0 12px 0; color:var(--eco-muted); }
-      .cta-row{ display:flex; gap:10px; flex-wrap:wrap }
-      .cta{
-        background:var(--eco-primary); color:#0F1E17; padding:10px 14px;
+      }}
+      .hero h2{{ margin:0 0 6px 0; font-size:1.6rem; font-weight:800; }}
+      .hero p{{ margin:0 0 12px 0; color:var(--eco-muted); }}
+      .cta-row{{ display:flex; gap:10px; flex-wrap:wrap }}
+      .cta{{
+        background:var(--eco-primary); color:var(--eco-bg); padding:10px 14px;
         border-radius:10px; font-weight:800; text-decoration:none !important;
-      }
-      .cta.secondary{
+      }}
+      .cta.secondary{{
         background:transparent; color:var(--eco-primary);
-        border:1px solid #2a4; font-weight:700;
-      }
+        border:1px solid color-mix(in srgb, var(--eco-primary) 40%, transparent);
+        font-weight:700;
+      }}
 
       /* Sections / KPIs / Features */
-      .section{ margin: 8px 0 22px 0; padding:18px; border:1px solid var(--eco-border); border-radius:16px; background:var(--eco-card); }
-      .kpi{ text-align:center; border:1px solid var(--eco-border); padding:16px; border-radius:14px; background:#0F1E17; }
-      .kpi .big{ font-size:1.6rem; font-weight:800; line-height:1.2; }
-      .kpi .label{ color:#a6d7b4; font-size:.95rem; }
-      .feature{ border:1px solid var(--eco-border); padding:16px; border-radius:14px; background:#0F1E17; height:100%; }
-      .feature h4{ margin:.2rem 0 .4rem 0; }
+      .section{{ margin: 8px 0 22px 0; padding:18px; border:1px solid var(--eco-border); border-radius:16px; background:var(--eco-card); }}
+      .kpi{{ text-align:center; border:1px solid var(--eco-border); padding:16px; border-radius:14px; background:color-mix(in srgb, var(--eco-card) 80%, var(--eco-bg) 20%); }}
+      .kpi .big{{ font-size:1.6rem; font-weight:800; line-height:1.2; }}
+      .kpi .label{{ color:var(--eco-muted); font-size:.95rem; }}
+      .feature{{ border:1px solid var(--eco-border); padding:16px; border-radius:14px; background:color-mix(in srgb, var(--eco-card) 80%, var(--eco-bg) 20%); height:100%; }}
+      .feature h4{{ margin:.2rem 0 .4rem 0; }}
+      .footnote{{ text-align:center; color:var(--eco-muted); margin-top:8px; }}
 
       /* Guidance card */
-      .eco-card{
-        background: var(--eco-card);
-        border:1px solid var(--eco-border);
-        border-radius:18px;
-        padding:18px 16px;
-        margin: 10px 0 18px 0;
-        box-shadow: 0 2px 10px rgba(0,0,0,.15);
-      }
-      .eco-head{ display:flex; align-items:center; gap:10px; margin-bottom:6px; }
-      .eco-emoji{ font-size:1.4rem; }
-      .eco-title{ font-weight:800; }
-      .eco-badge{
-        margin-left:auto;
-        background: var(--eco-pill);
-        color: var(--eco-primary);
-        border:1px solid var(--eco-border);
-        border-radius:999px;
-        padding:4px 10px;
-        font-size:.85rem;
-      }
-      .eco-meta{ margin: 6px 0 8px 0; color: var(--eco-muted); font-size:.95rem; }
-      .eco-section-title{ font-weight:800; margin-top:8px; margin-bottom:4px; }
-      .eco-list{ margin:0 0 4px 0; padding-left:18px;}
-      .eco-list li{ margin: 2px 0; }
-      .chip-row{ display:flex; flex-wrap:wrap; gap:8px; margin: 6px 0 2px 0; }
-      .chip{
-        background: var(--eco-pill);
-        color: var(--eco-primary);
-        border:1px solid var(--eco-border);
-        border-radius:999px;
-        padding:4px 10px;
-        font-size:.88rem;
-      }
-      .eco-links{ display:flex; gap:10px; margin-top:10px; flex-wrap:wrap; }
-      .eco-link{
-        border-radius:10px;
-        padding:8px 12px;
-        border:1px solid var(--eco-border);
-        background: #0F1E17;
-        text-decoration:none !important;
-        color:var(--eco-primary) !important;
-        font-weight:700;
-      }
-      .eco-link:hover{ background: var(--eco-pill); }
+      .eco-card{{ background: var(--eco-card); border:1px solid var(--eco-border); border-radius:18px; padding:18px 16px; margin: 10px 0 18px 0; box-shadow: 0 2px 10px rgba(0,0,0,.08); }}
+      .eco-head{{ display:flex; align-items:center; gap:10px; margin-bottom:6px; }}
+      .eco-emoji{{ font-size:1.4rem; }}
+      .eco-title{{ font-weight:800; }}
+      .eco-badge{{ margin-left:auto; background: var(--eco-pill); color: var(--eco-primary); border:1px solid var(--eco-border); border-radius:999px; padding:4px 10px; font-size:.85rem; }}
+      .eco-meta{{ margin: 6px 0 8px 0; color: var(--eco-muted); font-size:.95rem; }}
+      .eco-section-title{{ font-weight:800; margin-top:8px; margin-bottom:4px; }}
+      .eco-list{{ margin:0 0 4px 0; padding-left:18px; }}
+      .eco-list li{{ margin: 2px 0; }}
+      .chip-row{{ display:flex; flex-wrap:wrap; gap:8px; margin: 6px 0 2px 0; }}
+      .chip{{ background: var(--eco-pill); color: var(--eco-primary); border:1px solid var(--eco-border); border-radius:999px; padding:4px 10px; font-size:.88rem; }}
+      .eco-links{{ display:flex; gap:10px; margin-top:10px; flex-wrap:wrap; }}
+      .eco-link{{ border-radius:10px; padding:8px 12px; border:1px solid var(--eco-border); background: transparent; text-decoration:none !important; color:var(--eco-primary) !important; font-weight:700; }}
+      .eco-link:hover{{ background: var(--eco-pill); }}
 
       /* Debug expanders subtle */
-      details{
-        background: rgba(20,48,34,.35);
-        border-radius:12px;
-        border:1px solid var(--eco-border);
-      }
-      summary{ padding:8px 10px; }
+      details{{ background: {vars['debug_bg']}; border-radius:12px; border:1px solid var(--eco-border); }}
+      summary{{ padding:8px 10px; }}
     </style>
     """, unsafe_allow_html=True)
 
-apply_theme()
+# Sidebar theme toggle (set BEFORE injecting CSS)
+theme_mode = st.sidebar.selectbox("Theme", ["Eco Light", "Eco Dark"], index=0)
+apply_theme(theme_mode)
 
-# -------------------------
-# Config
-# -------------------------
+# ------------------------- Config -------------------------
 MODEL_URL     = os.getenv("MODEL_URL", "https://raw.githubusercontent.com/Bellzum/streamlit-main/main/new_taco1.pt")
 LOCAL_MODEL   = os.getenv("LOCAL_MODEL", "best.pt")
 CACHED_PATH   = "/tmp/models/best.pt"
 DEFAULT_IMGSZ = int(os.getenv("IMGSZ", "640"))
 
-# Fallback names if checkpoint has none
 CLASS_NAMES   = ["Clear plastic bottle", "Drink can", "Plastic bottle cap"]
 IMGSZ_OPTIONS = [320, 416, 512, 640, 800, 960, 1280]
 
-# -------------------------
-# Shibuya disposal guidance + materials and end uses
-# -------------------------
+# --------- Shibuya disposal guidance (materials & uses) ----------
 SHIBUYA_GUIDE_URL = "https://www.city.shibuya.tokyo.jp/contents/living-in-shibuya/en/daily/garbage.html"
 
 GUIDE = {
@@ -148,11 +125,7 @@ GUIDE = {
             "Put PET bottles in a transparent bag for PET.",
             "Put caps and labels with Plastics."
         ],
-        "recycles_to": [
-            "New PET bottles",
-            "Fibers for clothing and bags",
-            "Sheets, films, and molded goods"
-        ],
+        "recycles_to": ["New PET bottles", "Fibers for clothing and bags", "Sheets, films, and molded goods"],
         "facts": [
             {"text": "Japan turns used PET into new bottles, sheet products, and fibers for clothing.", "url": "https://www.petbottle-rec.gr.jp/english/actual.html"},
             {"text": "Bottle-to-bottle recycling is widely used in Japan.", "url": "https://www.suntory.com/csr/story/003/"}
@@ -167,14 +140,8 @@ GUIDE = {
             "Clean metal cans keep a high-value recycling stream.",
             "Recycling aluminum saves about 95% of the energy compared with smelting new metal."
         ],
-        "steps": [
-            "Rinse the can.",
-            "Put cans in a transparent bag for cans."
-        ],
-        "recycles_to": [
-            "New beverage cans (can-to-can)",
-            "Other aluminum goods such as automotive or construction parts"
-        ],
+        "steps": ["Rinse the can.", "Put cans in a transparent bag for cans."],
+        "recycles_to": ["New beverage cans (can-to-can)", "Other aluminum goods such as automotive or construction parts"],
         "facts": [
             {"text": "Aluminum recycling saves about 95% of the energy needed for primary production.", "url": "https://international-aluminium.org/landing/aluminium-recycling-saves-95-of-the-energy-needed-for-primary-aluminium-production/"},
             {"text": "Japan has established can-to-can systems and even 100% recycled aluminum cans on shelves.", "url": "https://www.tskg-hd.com/news_file/file/Toyo%20Seikan%20realizes%20the%20World%27s%20First%20100%20Recycled%20Aluminum%20Beverage%20Can.pdf"}
@@ -190,17 +157,8 @@ GUIDE = {
             "Shibuya sorts caps with Plastics, not with PET bottles.",
             "Japan is piloting cap-to-cap horizontal recycling."
         ],
-        "steps": [
-            "Remove from the bottle.",
-            "If dirty, rinse quickly.",
-            "Put caps with Plastics in a transparent bag.",
-            "Do not put caps with the PET bottle bag."
-        ],
-        "recycles_to": [
-            "New caps in cap-to-cap pilots",
-            "Plastic containers and packaging",
-            "Pallets and other molded products"
-        ],
+        "steps": ["Remove from the bottle.", "If dirty, rinse quickly.", "Put caps with Plastics in a transparent bag.", "Do not put caps with the PET bottle bag."],
+        "recycles_to": ["New caps in cap-to-cap pilots", "Plastic containers and packaging", "Pallets and other molded products"],
         "facts": [
             {"text": "Caps and labels go with Plastics in Shibuya, separate from PET bottles.", "url": "https://files.city.shibuya.tokyo.jp/assets/12995aba8b194961be709ba879857f70/bfda2f5d763343b5a0b454087299d57f/2024wakedashiEnglish.pdf"},
             {"text": "Cap-to-cap horizontal recycling is being verified in Japan.", "url": "https://www.sojitz.com/en/news/article/topics-20230112_02.html"}
@@ -259,9 +217,7 @@ def show_shibuya_guidance(label: str, count: int = 0):
     st.markdown('</div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
-# -------------------------
-# Helpers
-# -------------------------
+# ------------------------- Helpers -------------------------
 def _download_file(url: str, dest: str):
     os.makedirs(os.path.dirname(dest), exist_ok=True)
     try:
@@ -270,8 +226,7 @@ def _download_file(url: str, dest: str):
             r.raise_for_status()
             with open(dest, "wb") as f:
                 for chunk in r.iter_content(chunk_size=8192):
-                    if chunk:
-                        f.write(chunk)
+                    if chunk: f.write(chunk)
         return
     except Exception as e_req:
         try:
@@ -338,19 +293,18 @@ def _get_names_map(pred, model):
 def _closest_size(target: int, options: list[int]) -> int:
     return min(options, key=lambda x: abs(x - target))
 
-# -------------------------
-# UI (Header + Hero + KPIs + Features)
-# -------------------------
+# ------------------------- UI (Header + Hero + Sections) -------------------------
 logo_col, title_col = st.columns([1, 6], vertical_alignment="center")
 with logo_col:
     if os.path.exists("logo.png"):
-        st.image("logo.png", caption=None, use_column_width=False, width=140)
+        # FIX: removed deprecated use_column_width
+        st.image("logo.png", width=140)
 with title_col:
     st.title("♻️ When AI Sees Litter — Shibuya")
 
 st.markdown("""
 <div class="hero">
-  <h2>Save the world! <span style="color:#7EE787">Sustainable</span> litter detection for Shibuya.</h2>
+  <h2>Save the world! <span style="color:var(--eco-primary)">Sustainable</span> litter detection for Shibuya.</h2>
   <p>Detect PET bottles, cans, and caps — then teach correct sorting with official city guidance and
      show what recycling turns them into (clothes, bottles, pallets, and more).</p>
   <div class="cta-row">
@@ -366,15 +320,17 @@ with st.expander("Model source"):
     if os.path.exists(CACHED_PATH):
         st.write(f"Cached path: {CACHED_PATH}  size: {os.path.getsize(CACHED_PATH)/1e6:.2f} MB")
 
+# KPIs
 st.markdown('<div class="section">', unsafe_allow_html=True)
 c1,c2,c3,c4 = st.columns(4)
-with c1: st.markdown('<div class="kpi"><div class="big">12m t</div><div class="label">Waste avoided*</div></div>', unsafe_allow_html=True)
+with c1: st.markdown('<div class="kpi"><div class="big">12m t</div><div class="label">Waste avoided</div></div>', unsafe_allow_html=True)
 with c2: st.markdown('<div class="kpi"><div class="big">25k+</div><div class="label">Predictions</div></div>', unsafe_allow_html=True)
 with c3: st.markdown('<div class="kpi"><div class="big">73.8%</div><div class="label">Can-to-can (JP)</div></div>', unsafe_allow_html=True)
 with c4: st.markdown('<div class="kpi"><div class="big">95%</div><div class="label">Energy saved (Al)</div></div>', unsafe_allow_html=True)
-st.caption("*) demo numbers / examples")
+st.markdown('<div class="footnote">Demo numbers for illustration</div>', unsafe_allow_html=True)
 st.markdown('</div>', unsafe_allow_html=True)
 
+# Features
 st.markdown('<div id="learn" class="section">', unsafe_allow_html=True)
 f1,f2,f3 = st.columns(3)
 with f1: st.markdown('<div class="feature">🌿<h4>Cleaner Streets</h4><p>Cut litter & contamination with instant guidance in Japanese municipalities.</p></div>', unsafe_allow_html=True)
@@ -384,11 +340,8 @@ st.markdown('</div>', unsafe_allow_html=True)
 
 st.markdown('---')
 
-# -------------------------
-# Defaults / Advanced settings
-# -------------------------
-
-# We want Minimum filters as AUTO default
+# ------------------------- Defaults / Advanced settings -------------------------
+# Auto default to Minimum filters (even if Advanced isn't opened)
 _MIN_CONF = 0.05
 _MIN_IOU = 0.10
 _MIN_IMGSZ = _closest_size(DEFAULT_IMGSZ, IMGSZ_OPTIONS)
@@ -398,24 +351,13 @@ _MIN_CAP = 0.00
 _MIN_AREA_PCT = 0.0
 _MIN_TTA = False
 
-# Advanced panel (users can change)
 with st.expander("Advanced settings (optional)"):
-    preset = st.radio(
-        "Preset",
-        ["Minimum filters", "Recommended", "Strict"],
-        index=0,  # Default to Minimum filters when opened
-        horizontal=True
-    )
+    preset = st.radio("Preset", ["Minimum filters", "Recommended", "Strict"], index=0, horizontal=True)
 
     # Start from Minimum filters
-    conf = _MIN_CONF
-    iou = _MIN_IOU
-    imgsz = _MIN_IMGSZ
-    bottle_min = _MIN_BOTTLE
-    can_min = _MIN_CAN
-    cap_min = _MIN_CAP
-    min_area_pct = _MIN_AREA_PCT
-    tta = _MIN_TTA
+    conf = _MIN_CONF; iou = _MIN_IOU; imgsz = _MIN_IMGSZ
+    bottle_min = _MIN_BOTTLE; can_min = _MIN_CAN; cap_min = _MIN_CAP
+    min_area_pct = _MIN_AREA_PCT; tta = _MIN_TTA
 
     if preset == "Recommended":
         conf = 0.25; iou = 0.45
@@ -426,7 +368,6 @@ with st.expander("Advanced settings (optional)"):
         bottle_min = 0.70; can_min = 0.70; cap_min = 0.75
         min_area_pct = 0.5; tta = False
 
-    # Fine tuning sliders
     conf = st.slider("Base confidence", 0.05, 0.95, conf, 0.01, help="Model confidence threshold.")
     iou  = st.slider("IoU", 0.10, 0.90, iou, 0.01)
     imgsz = st.select_slider("Inference image size", options=IMGSZ_OPTIONS, value=_closest_size(int(imgsz), IMGSZ_OPTIONS))
@@ -437,31 +378,22 @@ with st.expander("Advanced settings (optional)"):
     min_area_pct = c4.slider("Min box area (%)", 0.0, 5.0, min_area_pct, 0.1, help="Ignore tiny boxes by percent of image area.")
     tta = st.toggle("Test time augmentation", value=tta, help="Slower. Sometimes reduces false positives.")
 
-# If Advanced wasn't opened, those variables won't exist; default to MINIMUM FILTERS
+# If Advanced wasn't opened, fall back to Minimum filters
 if "conf" not in locals():
-    conf = _MIN_CONF
-    iou = _MIN_IOU
-    imgsz = _MIN_IMGSZ
-    bottle_min = _MIN_BOTTLE
-    can_min = _MIN_CAN
-    cap_min = _MIN_CAP
-    min_area_pct = _MIN_AREA_PCT
-    tta = _MIN_TTA
+    conf = _MIN_CONF; iou = _MIN_IOU; imgsz = _MIN_IMGSZ
+    bottle_min = _MIN_BOTTLE; can_min = _MIN_CAN; cap_min = _MIN_CAP
+    min_area_pct = _MIN_AREA_PCT; tta = _MIN_TTA
 
-# -------------------------
-# Input & Inference
-# -------------------------
+# ------------------------- Input & Inference -------------------------
 st.markdown('<div id="run"></div>', unsafe_allow_html=True)
 src = st.radio("Input source", ["Upload image", "Webcam"], horizontal=True)
 image = None
 if src == "Upload image":
     up = st.file_uploader("Choose an image", type=["jpg", "jpeg", "png"])
-    if up:
-        image = Image.open(up).convert("RGB")
+    if up: image = Image.open(up).convert("RGB")
 else:
     shot = st.camera_input("Take a photo", key="cam1")
-    if shot:
-        image = Image.open(shot).convert("RGB")
+    if shot: image = Image.open(shot).convert("RGB")
 
 if st.button("Load model"):
     m = load_model()
@@ -490,12 +422,7 @@ if image is not None:
             clsi   = pred.boxes.cls.cpu().numpy().astype(int)
             names_map = _get_names_map(pred, model)
 
-            per_class_min = {
-                "Clear plastic bottle": bottle_min,
-                "Drink can": can_min,
-                "Plastic bottle cap": cap_min
-            }
-
+            per_class_min = {"Clear plastic bottle": bottle_min, "Drink can": can_min, "Plastic bottle cap": cap_min}
             H, W = bgr.shape[:2]
             min_area = (min_area_pct / 100.0) * (H * W)
 
@@ -512,10 +439,8 @@ if image is not None:
                     name = CLASS_NAMES[c] if 0 <= c < len(CLASS_NAMES) else str(c)
                 s = float(scores[i])
 
-                # Extra filters
-                thr = per_class_min.get(name, conf)
-                if s < thr:        continue
-                if area < min_area: continue
+                if s < per_class_min.get(name, conf):   continue
+                if area < min_area:                      continue
 
                 dets.append({"xyxy": [x1, y1, x2, y2], "class_id": c, "class_name": name, "score": s})
                 counts[name] = counts.get(name, 0) + 1
