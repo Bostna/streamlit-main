@@ -34,41 +34,21 @@ def apply_agri_theme():
           radial-gradient(700px 280px at 10% -20%, rgba(121,193,109,.18), transparent),
           linear-gradient(135deg, #FFFFFF 0%, #F7FBF2 100%);
         border:1px solid var(--agri-border);
-        border-radius:24px; padding:26px 22px; margin: 6px 0 18px 0;
+        border-radius:24px; padding:22px 20px; margin: 6px 0 12px 0;
       }
-      .hero h1{ margin:0 0 6px 0; font-weight:900; letter-spacing:.2px; font-size:2.0rem; }
-      .hero p{ margin:0 0 14px 0; color: var(--agri-muted); }
+      .hero h1{ margin:0 0 6px 0; font-weight:900; letter-spacing:.2px; font-size:1.8rem; }
+      .hero p{ margin:0 0 10px 0; color: var(--agri-muted); }
       .pill{ display:inline-block; background: var(--agri-pill); padding: 2px 10px 4px 10px;
              border-radius: 999px; color: var(--agri-primary-dark); border:1px solid var(--agri-border); }
-      .cta-row{ display:flex; gap:10px; flex-wrap:wrap }
-      .cta{
-        background: var(--agri-primary); color: #fff; padding:10px 14px; border-radius: 999px;
-        font-weight:800; text-decoration:none !important; border:1px solid rgba(121,193,109,.5);
-      }
-      .cta.secondary{ background: #fff; color: var(--agri-primary-dark); border:1px solid var(--agri-border); }
-      .cta:hover{ filter: brightness(0.97); }
 
-      .section{ margin: 10px 0 22px 0; padding:18px; background: var(--agri-card);
-                border:1px solid var(--agri-border); border-radius: 20px; }
+      .section{ margin: 10px 0 18px 0; padding:16px; background: var(--agri-card);
+                border:1px solid var(--agri-border); border-radius: 18px; }
 
-      .kpi{ text-align:center; border:1px solid var(--agri-border); padding:16px; border-radius:18px;
-            background:#FFFFFF; box-shadow: 0 3px 16px rgba(0,0,0,.03); }
-      .kpi .big{ font-size:1.7rem; font-weight:900; line-height:1.2; }
-      .kpi .label{ color: var(--agri-muted); font-size:.95rem; }
-
-      .feature{ border:1px solid var(--agri-border); padding:0; border-radius:18px; background:#FFFFFF;
-                height:100%; box-shadow: 0 3px 16px rgba(0,0,0,.03); overflow:hidden; }
-      .feature .img{ width:100%; height:170px; object-fit:cover; display:block; }
-      .feature .body{ padding:14px 14px 16px 14px; }
-      .feature h4{ margin:.2rem 0 .4rem 0; }
-      .feature .linkrow{ margin-top:8px; }
-
-      /* Guidance card (bigger subhead) */
       .eco-card{ background:#FFFFFF; border:1px solid var(--agri-border); border-radius:22px;
                  padding:18px 16px; margin:10px 0 18px 0; box-shadow: 0 3px 16px rgba(0,0,0,.04); }
       .eco-head{ display:flex; align-items:center; gap:10px; margin-bottom:6px; }
       .eco-emoji{ font-size:1.5rem; }
-      .eco-title{ font-weight:900; font-size:1.28rem; } /* <-- larger subhead */
+      .eco-title{ font-weight:900; font-size:1.28rem; } /* larger subhead */
       .eco-badge{ margin-left:auto; background: var(--agri-pill); color: var(--agri-primary-dark);
                   border:1px solid var(--agri-border); border-radius:999px; padding:4px 10px; font-size:.85rem; }
       .eco-meta{ margin: 6px 0 8px 0; color: var(--agri-muted); font-size:.95rem; }
@@ -83,11 +63,7 @@ def apply_agri_theme():
                  background:#fff; text-decoration:none !important; color: var(--agri-primary-dark) !important; font-weight:700; }
       .eco-link:hover{ background: var(--agri-pill); }
 
-      details{ background:#FFFFFF; border-radius:16px; border:1px solid var(--agri-border); }
-      summary{ padding:8px 10px; }
-
-      .soft-hr{ height:1px; background: var(--agri-border); margin: 8px 0 16px 0; }
-      .footnote{ text-align:center; color:var(--agri-muted); margin-top:8px; }
+      .howto li{ margin:2px 0; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -102,7 +78,7 @@ DEFAULT_IMGSZ = int(os.getenv("IMGSZ", "640"))
 CLASS_NAMES   = ["Clear plastic bottle", "Drink can", "Plastic bottle cap"]
 IMGSZ_OPTIONS = [320, 416, 512, 640, 800, 960, 1280]
 
-# ======================= Links + feature images =======================
+# ======================= Links + feature images (optional) =======================
 FEATURE_LINKS = {
     "cleaner": os.getenv("LINK_CLEANER", "https://www.city.shibuya.tokyo.jp/contents/living-in-shibuya/en/daily/garbage.html"),
     "recycling": os.getenv("LINK_RECYCLING", "https://www.petbottle-rec.gr.jp/english/actual.html"),
@@ -125,7 +101,7 @@ SHIBUYA_GUIDE_URL = "https://www.city.shibuya.tokyo.jp/contents/living-in-shibuy
 SHIBUYA_POSTER_EN = "https://files.city.shibuya.tokyo.jp/assets/12995aba8b194961be709ba879857f70/bfda2f5d763343b5a0b454087299d57f/2024wakedashiEnglish.pdf#page=2"
 SHIBUYA_PLASTICS_NOTICE = "https://files.city.shibuya.tokyo.jp/assets/12995aba8b194961be709ba879857f70/0cdf099fdfe8456fbac12bb5ad7927e4/assets_kusei_ShibuyaCityNews2206_e.pdf#page=1"
 
-# Fukuoka City PET step photos (illustrative, same steps)
+# PET step photos (Fukuoka City — illustrates same steps)
 FUKUOKA_PET_STEPS = [
     "https://kateigomi-bunbetsu.city.fukuoka.lg.jp/files/Rules/images/bottles/ph04.png",  # remove cap
     "https://kateigomi-bunbetsu.city.fukuoka.lg.jp/files/Rules/images/bottles/ph05.png",  # remove label
@@ -157,7 +133,14 @@ GUIDE = {
         ],
         "recycles_to": ["New PET bottles", "Fibers for clothing and bags", "Sheets/films"],
         "facts": [
-            {"text": "Japan turns used PET into new bottles, sheets, and fibers for clothing.", "url": "https://www.petbottle-rec.gr.jp/english/actual.html"}
+            {
+                "text": "Japan’s reported 87% plastic 'recycling' includes a large share of thermal recovery. Clean, separated PET enables high-value bottle-to-bottle.",
+                "url": "https://japan-forward.com/japans-plastic-recycling-the-unseen-reality/"
+            },
+            {
+                "text": "Recycled PET in Japan becomes new bottles, sheets and fibers for clothing/bags.",
+                "url": "https://www.petbottle-rec.gr.jp/english/actual.html"
+            }
         ],
         "images": FUKUOKA_PET_STEPS,
         "icons": [ICON_PET],
@@ -170,11 +153,19 @@ GUIDE = {
         "materials": "Mostly aluminum; some cans are steel.",
         "why_separate": [
             "Clean metal cans keep a high-value recycling stream.",
-            "Aluminum recycling saves ~95% of the energy vs new metal."
+            "Aluminum recycling saves major energy vs producing new metal."
         ],
         "steps": ["Rinse the can.", "Put cans in a transparent bag for cans."],
-        "recycles_to": ["New beverage cans (can-to-can)", "Other metal goods"],
-        "facts": [],
+        "recycles_to": [
+            "New beverage cans (can-to-can)",
+            "Automotive & construction parts (aluminum)",
+        ],
+        "facts": [
+            {
+                "text": "Coca-Cola Bottlers Japan promotes CAN-to-CAN, including products using 100% recycled aluminum bodies.",
+                "url": "https://en.ccbji.co.jp/news/detail.php?id=1347"
+            }
+        ],
         "images": [],
         "icons": [ICON_AL, ICON_STEEL],
         "link": SHIBUYA_GUIDE_URL,
@@ -190,7 +181,12 @@ GUIDE = {
         ],
         "steps": ["Remove from the bottle.", "Rinse if sticky.", "Put caps with Plastic items in a clear/semi-clear bag."],
         "recycles_to": ["New caps (pilots)", "Plastic containers/packaging", "Pallets & molded goods"],
-        "facts": [],
+        "facts": [
+            {
+                "text": "Separating PP/PE caps and labels keeps the PET stream clean for high-value recycling.",
+                "url": "https://japan-forward.com/japans-plastic-recycling-the-unseen-reality/"
+            }
+        ],
         "images": [],
         "icons": [ICON_PLA],
         "link": SHIBUYA_GUIDE_URL,
@@ -200,41 +196,6 @@ GUIDE = {
 
 def _guide_link(url: str, label: str):
     st.markdown(f'<a class="eco-link" href="{url}" target="_blank" rel="noopener">{label}</a>', unsafe_allow_html=True)
-
-def show_shibuya_guidance(label: str, count: int = 0):
-    info = GUIDE.get(label)
-    if not info:
-        return
-    st.markdown('<div class="eco-card">', unsafe_allow_html=True)
-    st.markdown(f"""
-      <div class="eco-head">
-        <div class="eco-emoji">{info['emoji']}</div>
-        <div class="eco-title">{info['title']}</div>
-        <div class="eco-badge">Detected: {count}</div>
-      </div>
-    """, unsafe_allow_html=True)
-
-    # Small icons row (recycling marks)
-    if info.get("icons"):
-        st.image(info["icons"], width=48, caption=[""]*len(info["icons"]))
-
-    # Two-column layout if we have step illustrations
-    imgs = info.get("images") or []
-    if imgs:
-        left, right = st.columns([1, 2], vertical_alignment="center")
-        with left:
-            st.image(imgs, width=160, caption=[""]*len(imgs))
-        with right:
-            _guidance_text(info)
-    else:
-        _guidance_text(info)
-
-    # Links
-    st.markdown('<div class="eco-links">', unsafe_allow_html=True)
-    if info.get("poster"): _guide_link(info["poster"], "Open Shibuya poster")
-    _guide_link(info["link"], "Official Shibuya guidance (site)")
-    st.markdown('</div>', unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
 
 def _guidance_text(info: dict):
     if info.get("materials"):
@@ -266,6 +227,45 @@ def _guidance_text(info: dict):
         for fact in facts:
             st.markdown(f'<li>{fact["text"]}</li>', unsafe_allow_html=True)
         st.markdown('</ul>', unsafe_allow_html=True)
+        st.markdown('<div class="eco-links">', unsafe_allow_html=True)
+        for fact in facts:
+            _guide_link(fact["url"], "Learn more")
+        st.markdown('</div>', unsafe_allow_html=True)
+
+def show_shibuya_guidance(label: str, count: int = 0):
+    info = GUIDE.get(label)
+    if not info:
+        return
+    st.markdown('<div class="eco-card">', unsafe_allow_html=True)
+    st.markdown(f"""
+      <div class="eco-head">
+        <div class="eco-emoji">{info['emoji']}</div>
+        <div class="eco-title">{info['title']}</div>
+        <div class="eco-badge">Detected: {count}</div>
+      </div>
+    """, unsafe_allow_html=True)
+
+    # Icons (recycling marks)
+    if info.get("icons"):
+        st.image(info["icons"], width=48, caption=[""]*len(info["icons"]))
+
+    # Two-column if we have PET step illustrations
+    imgs = info.get("images") or []
+    if imgs:
+        left, right = st.columns([1, 2], vertical_alignment="center")
+        with left:
+            st.image(imgs, width=160, caption=[""]*len(imgs))
+        with right:
+            _guidance_text(info)
+    else:
+        _guidance_text(info)
+
+    # Links
+    st.markdown('<div class="eco-links">', unsafe_allow_html=True)
+    if info.get("poster"): _guide_link(info["poster"], "Open Shibuya poster")
+    _guide_link(info["link"], "Official Shibuya guidance (site)")
+    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
 # ======================= Helpers =======================
 def _download_file(url: str, dest: str):
@@ -317,15 +317,35 @@ def pil_to_bgr(pil_img: Image.Image) -> np.ndarray:
     arr = np.array(pil_img.convert("RGB"))
     return arr[:, :, ::-1]
 
+# --- NEW: robust label drawing that never clips at the top ---
 def draw_boxes(bgr, dets):
     import cv2
     out = bgr.copy()
+    H, W = out.shape[:2]
+    color = (28,160,78)  # theme green (BGR)
+
     for d in dets:
         x1, y1, x2, y2 = map(int, d["xyxy"])
-        cv2.rectangle(out, (x1, y1), (x2, y2), (28,160,78), 2)  # green accents
+        cv2.rectangle(out, (x1, y1), (x2, y2), color, 2)
+
         label = f'{d["class_name"]} {d["score"]:.2f}'
-        y = max(y1 - 7, 7)
-        cv2.putText(out, label, (x1, y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (28,160,78), 1, cv2.LINE_AA)
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        fs, thick = 0.5, 1
+        (tw, th), _ = cv2.getTextSize(label, font, fs, thick)
+
+        # Try above the box; if it would clip, place just inside the box
+        y_text = y1 - 4
+        if y_text - th - 4 < 0:  # not enough space above
+            y_text = min(y1 + th + 6, H - 2)
+
+        x_text = max(0, min(x1, W - tw - 6))
+
+        # Green filled pill background
+        x_bg1, y_bg1 = x_text, max(0, y_text - th - 4)
+        x_bg2, y_bg2 = min(x_text + tw + 6, W - 1), min(y_text + 2, H - 1)
+        cv2.rectangle(out, (x_bg1, y_bg1), (x_bg2, y_bg2), color, -1)
+        cv2.putText(out, label, (x_text + 3, y_text - 2), font, fs, (255, 255, 255), 1, cv2.LINE_AA)
+
     return Image.fromarray(out[:, :, ::-1])
 
 def _get_names_map(pred, model):
@@ -341,67 +361,37 @@ def _get_names_map(pred, model):
 def _closest_size(target: int, options: list[int]) -> int:
     return min(options, key=lambda x: abs(x - target))
 
-# ======================= UI (Header + Hero + Sections) =======================
+# ======================= HEADER =======================
 logo_col, title_col = st.columns([1, 6], vertical_alignment="center")
 with logo_col:
     if os.path.exists("logo.png"):
         st.image("logo.png", width=120)
 with title_col:
-    st.markdown("<div style='font-weight:800; font-size:1.2rem;'>When AI Sees Litter — Shibuya</div>", unsafe_allow_html=True)
+    st.markdown("<div style='font-weight:800; font-size:1.1rem;'>When AI Sees Litter — Shibuya</div>", unsafe_allow_html=True)
 
-st.markdown(f"""
+st.markdown("""
 <div class="hero">
-  <h1>Your Sustainable Sorting <span class="pill">Begins Here</span></h1>
-  <p>Detect PET bottles, cans, and caps — then follow Shibuya's guidance and learn what recycling turns them into (clothes, bottles, pallets, and more).</p>
-  <div class="cta-row">
-    <!-- Webcam CTAs intentionally removed -->
-    <a class="cta secondary" href="#learn">How it works</a>
-  </div>
+  <h1>Scan litter. Get Shibuya sorting guidance.</h1>
+  <p><span class="pill">Quick Detect</span> works on PET bottles, drink cans, and plastic bottle caps.</p>
 </div>
 """, unsafe_allow_html=True)
 
-with st.expander("Model source"):
-    st.write(f"LOCAL_MODEL: {LOCAL_MODEL}")
-    st.write(f"MODEL_URL: {MODEL_URL or '(empty)'}")
-    if os.path.exists(CACHED_PATH):
-        st.write(f"Cached path: {CACHED_PATH}  size: {os.path.getsize(CACHED_PATH)/1e6:.2f} MB")
-
-# KPI row
+# ======================= QUICK DETECT (TOP) =======================
 st.markdown('<div class="section">', unsafe_allow_html=True)
-c1,c2,c3,c4 = st.columns(4)
-with c1: st.markdown('<div class="kpi"><div class="big">12m t</div><div class="label">Waste avoided</div></div>', unsafe_allow_html=True)
-with c2: st.markdown('<div class="kpi"><div class="big">25k+</div><div class="label">Predictions</div></div>', unsafe_allow_html=True)
-with c3: st.markdown('<div class="kpi"><div class="big">73.8%</div><div class="label">Can-to-can (JP)</div></div>', unsafe_allow_html=True)
-with c4: st.markdown('<div class="kpi"><div class="big">95%</div><div class="label">Energy saved (Al)</div></div>', unsafe_allow_html=True)
-st.markdown('<div class="footnote">Demo numbers for illustration</div>', unsafe_allow_html=True)
-st.markdown('</div>', unsafe_allow_html=True)
+st.markdown("#### How to use")
+st.markdown("""
+<ol class="howto">
+  <li>Select <b>Camera</b> (phone) or <b>Upload image</b>.</li>
+  <li>Tap <b>Run detection</b>.</li>
+  <li>Follow the card(s) below for Shibuya disposal steps.</li>
+</ol>
+""", unsafe_allow_html=True)
 
-# Feature grid (images + links)
-st.markdown('<div id="learn" class="section">', unsafe_allow_html=True)
-f1,f2,f3 = st.columns(3)
-def feature_card(col, title, body, key):
-    with col:
-        st.markdown('<div class="feature">', unsafe_allow_html=True)
-        imgpath = resolve_asset(FEATURE_IMAGES.get(key))
-        if imgpath:
-            st.image(imgpath, use_container_width=True)
-        else:
-            st.markdown(f"<div style='height:170px;display:flex;align-items:center;justify-content:center;font-size:2rem;'>🌱</div>", unsafe_allow_html=True)
-        st.markdown('<div class="body">', unsafe_allow_html=True)
-        st.markdown(f"<h4>{title}</h4><p>{body}</p>", unsafe_allow_html=True)
-        st.markdown(f"<div class='linkrow'><a class='cta' href='{FEATURE_LINKS.get(key, '#')}' target='_blank' rel='noopener'>Learn more</a></div>", unsafe_allow_html=True)
-        st.markdown('</div></div>', unsafe_allow_html=True)
-feature_card(f1, "Cleaner Streets", "Instant guidance reduces litter & contamination in public bins.", "cleaner")
-feature_card(f2, "High-value Recycling", "Separate PET vs PP/PE caps so bottles can go bottle-to-bottle.", "recycling")
-feature_card(f3, "Impact Insights", "Track items guided, diversion rate, and learning engagement.", "insights")
-st.markdown('</div>', unsafe_allow_html=True)
-
-st.markdown('<div class="soft-hr"></div>', unsafe_allow_html=True)
-
-# ======================= Defaults / Advanced settings =======================
+# Minimum filters by default (even if Advanced is unopened)
 _MIN_CONF = 0.05; _MIN_IOU = 0.10; _MIN_IMGSZ = _closest_size(DEFAULT_IMGSZ, IMGSZ_OPTIONS)
 _MIN_BOTTLE = 0.00; _MIN_CAN = 0.00; _MIN_CAP = 0.00; _MIN_AREA_PCT = 0.0; _MIN_TTA = False
 
+# We keep Advanced controls, but default everything to min
 with st.expander("Advanced settings (optional)"):
     preset = st.radio("Preset", ["Minimum filters", "Recommended", "Strict"], index=0, horizontal=True)
     conf = _MIN_CONF; iou = _MIN_IOU; imgsz = _MIN_IMGSZ
@@ -426,17 +416,17 @@ if "conf" not in locals():
     bottle_min = _MIN_BOTTLE; can_min = _MIN_CAN; cap_min = _MIN_CAP
     min_area_pct = _MIN_AREA_PCT; tta = _MIN_TTA
 
-# ======================= Input & Inference =======================
-# (Webcam CTAs removed; the input control remains)
-src = st.radio("Input source", ["Upload image", "Webcam"], horizontal=True)
+# Input controls (Camera first)
+src = st.radio("Input source", ["Camera", "Upload image"], horizontal=True)
 image = None
 if src == "Upload image":
     up = st.file_uploader("Choose an image", type=["jpg", "jpeg", "png"])
     if up: image = Image.open(up).convert("RGB")
 else:
-    shot = st.camera_input("Take a photo", key="cam1")
+    shot = st.camera_input("Open your camera", key="cam1")
     if shot: image = Image.open(shot).convert("RGB")
 
+# Model loader (optional)
 if st.button("Load model"):
     m = load_model()
     names_from_model = getattr(m, "names", None)
@@ -448,8 +438,10 @@ if st.button("Load model"):
         st.info(f"Using fallback CLASS_NAMES: {CLASS_NAMES}")
     st.success("Model ready.")
 
+# Show chosen image and run detection
 if image is not None:
     st.image(image, caption="Input", use_container_width=True)
+
     if st.button("Run detection"):
         model = load_model()
         bgr = pil_to_bgr(image)
@@ -494,7 +486,7 @@ if image is not None:
                 st.subheader("Detections")
                 st.image(vis_img, use_container_width=True)
 
-                # Debug panels
+                # Debug (collapsed)
                 with st.expander("Raw detections (debug)", expanded=False):
                     st.dataframe(pd.DataFrame(dets))
                 if counts:
@@ -510,3 +502,24 @@ if image is not None:
                         show_shibuya_guidance(lbl, counts.get(lbl, 0))
                 else:
                     st.caption("No Shibuya guidance to show for these detections.")
+st.markdown('</div>', unsafe_allow_html=True)  # end section
+
+# ======================= (Optional) Feature explainer lower on page =======================
+st.markdown('<div class="section">', unsafe_allow_html=True)
+st.markdown("#### Why this helps")
+col1,col2,col3 = st.columns(3)
+def feature_card(col, title, body, key):
+    with col:
+        st.markdown('<div style="border:1px solid var(--agri-border); border-radius:16px; padding:14px; background:#fff;">', unsafe_allow_html=True)
+        imgpath = resolve_asset(FEATURE_IMAGES.get(key))
+        if imgpath:
+            st.image(imgpath, use_container_width=True)
+        st.markdown(f"<h4 style='margin:.4rem 0 .2rem 0'>{title}</h4><p>{body}</p>", unsafe_allow_html=True)
+        link = FEATURE_LINKS.get(key, "#")
+        st.markdown(f"<a class='eco-link' href='{link}' target='_blank' rel='noopener'>Learn more</a>", unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+
+feature_card(col1, "Cleaner Streets", "Instant guidance reduces litter & contamination in public bins.", "cleaner")
+feature_card(col2, "High-value Recycling", "Separate PET vs PP/PE caps so bottles can go bottle-to-bottle.", "recycling")
+feature_card(col3, "Impact Insights", "Track items guided, diversion rate, and learning engagement.", "insights")
+st.markdown('</div>', unsafe_allow_html=True)
