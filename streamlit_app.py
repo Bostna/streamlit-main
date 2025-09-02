@@ -48,7 +48,7 @@ def apply_agri_theme():
                  padding:18px 16px; margin:10px 0 18px 0; box-shadow: 0 3px 16px rgba(0,0,0,.04); }
       .eco-head{ display:flex; align-items:center; gap:10px; margin-bottom:6px; }
       .eco-emoji{ font-size:1.5rem; }
-      .eco-title{ font-weight:900; font-size:1.28rem; } /* larger subhead */
+      .eco-title{ font-weight:900; font-size:1.28rem; }
       .eco-badge{ margin-left:auto; background: var(--agri-pill); color: var(--agri-primary-dark);
                   border:1px solid var(--agri-border); border-radius:999px; padding:4px 10px; font-size:.85rem; }
       .eco-meta{ margin: 6px 0 8px 0; color: var(--agri-muted); font-size:.95rem; }
@@ -69,6 +69,10 @@ def apply_agri_theme():
                  background:#fff; padding:10px 12px; border-radius:14px; }
       .sdg-card img{ width:54px; height:auto; }
       .sdg-card .txt{ font-weight:700; }
+      .link-chips{ display:flex; flex-wrap:wrap; gap:10px; margin-top:8px; }
+      .link-chip{ border:1px solid var(--agri-border); padding:8px 12px; border-radius:999px;
+                  text-decoration:none; color: var(--agri-primary-dark); background:#fff; font-weight:700; }
+      .link-chip:hover{ background: var(--agri-pill); }
     </style>
     """, unsafe_allow_html=True)
 
@@ -120,11 +124,23 @@ ICON_AL    = "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1a/Recyclin
 ICON_STEEL = "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Recycling_steel.svg/120px-Recycling_steel.svg.png"
 ICON_PLA   = "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8b/Recycling_pla.svg/120px-Recycling_pla.svg.png"
 
-# SDG icon images (United Nations)
-SDG_11 = "https://www.un.org/en/file/60457"  # Sustainable Cities and Communities
-SDG_12 = "https://www.un.org/en/file/60460"  # Responsible Consumption and Production
-SDG_13 = "https://www.un.org/en/file/60463"  # Climate Action
-SDG_14 = "https://www.un.org/en/file/60466"  # Life Below Water
+# SDG icon images (official UN files)
+SDG_11 = "https://sdgs.un.org/sites/default/files/2020-07/E_SDG_Icons-11.jpg"
+SDG_12 = "https://sdgs.un.org/sites/default/files/2020-07/E_SDG_Icons-12.jpg"
+SDG_13 = "https://sdgs.un.org/sites/default/files/2020-07/E_SDG_Icons-13.jpg"
+SDG_14 = "https://sdgs.un.org/sites/default/files/2020-07/E_SDG_Icons-14.jpg"
+
+# Carbon-credit helpful links
+LINK_UN_CNP  = "https://unfccc.int/climate-action/united-nations-carbon-offset-platform"
+LINK_UN_CNP2 = "https://offset.climateneutralnow.org/"
+LINK_WB_MRV  = "https://www.worldbank.org/en/news/feature/2022/07/27/what-you-need-to-know-about-the-measurement-reporting-and-verification-mrv-of-carbon-credits"
+LINK_GS      = "https://www.goldstandard.org/"
+LINK_VERRA   = "https://verra.org/programs/verified-carbon-standard/"
+LINK_JCREDIT = "https://japancredit.go.jp/english/"
+
+# Hanwa & CCBJI can-to-can flow images
+HANWA_CAN2CAN = "https://www.hanwa.co.jp/images/csr/business/img_5_01.png"
+CCBJI_CAN2CAN = "https://en.ccbji.co.jp/upload/images/20221222-1-1(5).jpg"
 
 # ======================= Guidance content =======================
 GUIDE = {
@@ -167,8 +183,6 @@ GUIDE = {
             "Clean metal cans keep a high-value recycling stream.",
             "Aluminum recycling saves major energy vs producing new metal."
         ],
-        # Shibuya poster says "Rinse the inside before disposing" (no crushing required).
-        # We present "lightly crush/squeeze" as optional if allowed locally.
         "steps": [
             "Rinse the can.",
             "Optional: Lightly crush/squeeze to save space (only if your building/bin instructions allow).",
@@ -177,14 +191,20 @@ GUIDE = {
         "recycles_to": [
             "New beverage cans (can-to-can)",
             "Automotive & construction parts (aluminum)",
+            "Remelt scrap ingots"
         ],
         "facts": [
             {
                 "text": "Coca-Cola Bottlers Japan promotes CAN-to-CAN, including products using recycled aluminum bodies.",
                 "url": "https://en.ccbji.co.jp/news/detail.php?id=1347"
+            },
+            {
+                "text": "Hanwa: used aluminum cans are cleaned, melted and supplied as remelt scrap ingots to aluminum mills — then used again as cans.",
+                "url": HANWA_CAN2CAN
             }
         ],
-        "images": [],   # (If you find a municipality can-steps image you like, add URLs here.)
+        # Show both Hanwa and CCBJI flow images on the card
+        "images": [HANWA_CAN2CAN, CCBJI_CAN2CAN],
         "icons": [ICON_AL, ICON_STEEL],
         "link": SHIBUYA_GUIDE_URL,
         "poster": SHIBUYA_POSTER_EN,
@@ -263,19 +283,28 @@ def show_shibuya_guidance(label: str, count: int = 0):
       </div>
     """, unsafe_allow_html=True)
 
+    # Icons (recycling marks)
     if info.get("icons"):
         st.image(info["icons"], width=48, caption=[""]*len(info["icons"]))
 
+    # Images (PET steps or flow diagrams)
     imgs = info.get("images") or []
     if imgs:
         left, right = st.columns([1, 2], vertical_alignment="center")
         with left:
-            st.image(imgs, width=160, caption=[""]*len(imgs))
+            if len(imgs) == 1:
+                st.image(imgs[0], use_container_width=True)   # large single
+            elif len(imgs) <= 3:
+                for im in imgs:
+                    st.image(im, use_container_width=True)   # stack a few, readable
+            else:
+                st.image(imgs, width=160, caption=[""]*len(imgs))  # many (thumbnail)
         with right:
             _guidance_text(info)
     else:
         _guidance_text(info)
 
+    # Links
     st.markdown('<div class="eco-links">', unsafe_allow_html=True)
     if info.get("poster"): _guide_link(info["poster"], "Open Shibuya poster")
     _guide_link(info["link"], "Official Shibuya guidance (site)")
@@ -520,24 +549,46 @@ st.markdown('</div>', unsafe_allow_html=True)  # end section
 # ======================= Impact & SDGs =======================
 st.markdown('<div class="section">', unsafe_allow_html=True)
 st.markdown("#### Impact & SDGs")
+
 st.markdown("""
-- **Carbon credits (what it means):** a carbon credit represents **1 tonne of CO₂-equivalent** reduced or removed.  
-  Individuals *can* purchase voluntary credits (e.g., via the UN Carbon Offset Platform). Compliance credits are typically for companies under regulations.  
-  *Note:* This app does not issue credits; it can show guidance and counts that help reduce contamination and potentially enable future carbon-impact estimations.
+- **Carbon credits (what they are):** A carbon credit represents **1 tonne of CO₂-equivalent** reduced or removed. Credits exist only when a **registered project** follows an **approved methodology** and passes **MRV**; they are then **issued on a registry** (e.g., Gold Standard, Verra, or Japan’s J-Credit).  
+- **This app does not issue credits.** It helps people sort properly. You may show **educational CO₂e-avoided estimates**, but that is **not** the same as credits.
 """)
-colA, colB = st.columns([1,1])
-with colA:
-    st.markdown("**Learn more:**")
-    st.markdown("- World Bank explainer on carbon credits (1 tCO₂e per credit)")
-    st.markdown("- UN Carbon Offset Platform (individuals/companies can buy voluntary credits)")
-with colB:
-    st.markdown("**Our SDGs focus:**")
-    st.markdown("""
-<div class="sdg-row">
-  <div class="sdg-card"><img src='""" + SDG_12 + """'><div class="txt">12 Responsible Consumption & Production</div></div>
-  <div class="sdg-card"><img src='""" + SDG_11 + """'><div class="txt">11 Sustainable Cities & Communities</div></div>
-  <div class="sdg-card"><img src='""" + SDG_13 + """'><div class="txt">13 Climate Action</div></div>
-  <div class="sdg-card"><img src='""" + SDG_14 + """'><div class="txt">14 Life Below Water</div></div>
+
+st.markdown(
+    f"""
+<div class="link-chips">
+  <a class="link-chip" href="{LINK_UN_CNP}" target="_blank" rel="noopener">UN Carbon Offset Platform</a>
+  <a class="link-chip" href="{LINK_UN_CNP2}" target="_blank" rel="noopener">Climate Neutral Now (shop credits)</a>
+  <a class="link-chip" href="{LINK_WB_MRV}" target="_blank" rel="noopener">World Bank: MRV & 1 credit = 1 tCO₂e</a>
+  <a class="link-chip" href="{LINK_GS}" target="_blank" rel="noopener">Gold Standard (program)</a>
+  <a class="link-chip" href="{LINK_VERRA}" target="_blank" rel="noopener">Verra VCS (program)</a>
+  <a class="link-chip" href="{LINK_JCREDIT}" target="_blank" rel="noopener">Japan J-Credit (official)</a>
 </div>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True
+)
+
+st.markdown("**Our SDGs focus:**")
+sdg_html = f"""
+<div class="sdg-row">
+  <div class="sdg-card">
+    <img src="{SDG_12}" alt="SDG 12 icon">
+    <div class="txt">12 Responsible Consumption &amp; Production</div>
+  </div>
+  <div class="sdg-card">
+    <img src="{SDG_11}" alt="SDG 11 icon">
+    <div class="txt">11 Sustainable Cities &amp; Communities</div>
+  </div>
+  <div class="sdg-card">
+    <img src="{SDG_13}" alt="SDG 13 icon">
+    <div class="txt">13 Climate Action</div>
+  </div>
+  <div class="sdg-card">
+    <img src="{SDG_14}" alt="SDG 14 icon">
+    <div class="txt">14 Life Below Water</div>
+  </div>
+</div>
+"""
+st.markdown(sdg_html, unsafe_allow_html=True)
 st.markdown('</div>', unsafe_allow_html=True)
