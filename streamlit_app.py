@@ -84,7 +84,7 @@ def apply_agri_theme():
 apply_agri_theme()
 
 # ======================= Config & Model =======================
-MODEL_URL     = os.getenv("MODEL_URL", "https://raw.githubusercontent.com/Bellzum/streamlit-main/blob/main/yolo_litterv2.pt")
+MODEL_URL     = os.getenv("MODEL_URL", "https://raw.githubusercontent.com/Bellzum/streamlit-main/blob/main/yolo_litterv1.pt")
 LOCAL_MODEL   = os.getenv("LOCAL_MODEL", "best.pt")
 CACHED_PATH   = "/tmp/models/best.pt"
 DEFAULT_IMGSZ = int(os.getenv("IMGSZ", "640"))
