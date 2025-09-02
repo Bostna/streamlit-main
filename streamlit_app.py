@@ -84,7 +84,7 @@ def apply_agri_theme():
 apply_agri_theme()
 
 # ======================= Config & Model =======================
-MODEL_URL     = os.getenv("MODEL_URL", "https://raw.githubusercontent.com/Bellzum/streamlit-main/blob/main/yolo_tue_3classesv2.pt")
+MODEL_URL     = os.getenv("MODEL_URL", "https://raw.githubusercontent.com/Bellzum/streamlit-main/blob/main/yolo_litterv2.pt")
 LOCAL_MODEL   = os.getenv("LOCAL_MODEL", "best.pt")
 CACHED_PATH   = "/tmp/models/best.pt"
 DEFAULT_IMGSZ = int(os.getenv("IMGSZ", "640"))
@@ -112,10 +112,6 @@ ICON_STEEL = "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Recyclin
 ICON_PLA   = "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8b/Recycling_pla.svg/120px-Recycling_pla.svg.png"
 
 # SDG icon images (official UN files)
-SDG_11 = "https://sdgs.un.org/sites/default/files/2020-07/E_SDG_Icons-11.jpg"
-SDG_12 = "https://sdgs.un.org/sites/default/files/2020-07/E_SDG_Icons-12.jpg"
-SDG_13 = "https://sdgs.un.org/sites/default/files/2020-07/E_SDG_Icons-13.jpg"
-SDG_14 = "https://sdgs.un.org/sites/default/files/2020-07/E_SDG_Icons-14.jpg"
 
 # Carbon-credit helpful links
 LINK_UN_CNP  = "https://unfccc.int/climate-action/united-nations-carbon-offset-platform"
