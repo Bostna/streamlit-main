@@ -84,7 +84,7 @@ def apply_agri_theme():
 apply_agri_theme()
 
 # ======================= Config & Model =======================
-MODEL_URL     = os.getenv("MODEL_URL", "https://raw.githubusercontent.com/Bellzum/streamlit-main/blob/main/tue_3classv1.pt")
+MODEL_URL     = os.getenv("MODEL_URL", "https://raw.githubusercontent.com/Bellzum/streamlit-main/blob/main/yolo_tue_3classesv2.pt")
 LOCAL_MODEL   = os.getenv("LOCAL_MODEL", "best.pt")
 CACHED_PATH   = "/tmp/models/best.pt"
 DEFAULT_IMGSZ = int(os.getenv("IMGSZ", "640"))
@@ -125,9 +125,9 @@ LINK_GS      = "https://www.goldstandard.org/"
 LINK_VERRA   = "https://verra.org/programs/verified-carbon-standard/"
 LINK_JCREDIT = "https://japancredit.go.jp/english/"
 
-# Hanwa & CCBJI can-to-can flow images
+# Hanwa can-to-can flow images
 HANWA_CAN2CAN = "https://www.hanwa.co.jp/images/csr/business/img_5_01.png"
-CCBJI_CAN2CAN = "https://en.ccbji.co.jp/upload/images/20221222-1-1(5).jpg"
+
 
 # ======================= Guidance content (Shibuya) =======================
 GUIDE_SHIBUYA = {
@@ -190,7 +190,7 @@ GUIDE_SHIBUYA = {
                 "url": HANWA_CAN2CAN
             }
         ],
-        "images": [HANWA_CAN2CAN, CCBJI_CAN2CAN],
+        "images": [HANWA_CAN2CAN],
         "icons": [ICON_AL, ICON_STEEL],
         "link": SHIBUYA_GUIDE_URL,
         "poster": SHIBUYA_POSTER_EN,
