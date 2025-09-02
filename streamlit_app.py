@@ -126,7 +126,7 @@ ICON_PLA   = "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8b/Recyclin
 
 # SDG icon images (official UN files)
 SDG_11 = "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d6/Sustainable_Development_Goal_11SustainableCities.svg/500px-Sustainable_Development_Goal_11SustainableCities.svg.png"
-SDG_12 = "https://upload.wikimedia.org/wikipedia/commons/thu…Development_Goal_12ResponsibleConsumption.svg.png"
+SDG_12 = "https://upload.wikimedia.org/wikipedia/commons/thumb/6/65/Sustainable_Development_Goal_12ResponsibleConsumption.svg/500px-Sustainable_Development_Goal_12ResponsibleConsumption.svg.png"
 SDG_13 = "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7b/Sustainable_Development_Goal_13Climate.svg/600px-Sustainable_Development_Goal_13Climate.svg.png"
 
 # Carbon-credit helpful links
