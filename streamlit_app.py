@@ -64,13 +64,18 @@ def apply_agri_theme():
       .eco-link:hover{ background: var(--agri-pill); }
 
       .howto li{ margin:2px 0; }
+      .sdg-row{ display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
+      .sdg-card{ display:flex; gap:10px; align-items:center; border:1px solid var(--agri-border);
+                 background:#fff; padding:10px 12px; border-radius:14px; }
+      .sdg-card img{ width:54px; height:auto; }
+      .sdg-card .txt{ font-weight:700; }
     </style>
     """, unsafe_allow_html=True)
 
 apply_agri_theme()
 
 # ======================= Config & Model =======================
-MODEL_URL     = os.getenv("MODEL_URL", "https://raw.githubusercontent.com/Bellzum/streamlit-main/main/yolo_tue_3classes.pt")
+MODEL_URL     = os.getenv("MODEL_URL", "https://raw.githubusercontent.com/Bellzum/streamlit-main/main/new_taco1.pt")
 LOCAL_MODEL   = os.getenv("LOCAL_MODEL", "best.pt")
 CACHED_PATH   = "/tmp/models/best.pt"
 DEFAULT_IMGSZ = int(os.getenv("IMGSZ", "640"))
@@ -96,7 +101,7 @@ def resolve_asset(path: str):
     alt = os.path.join("assets", base)
     return alt if os.path.exists(alt) else None
 
-# ======================= Guidance content (with remote illustrations) =======================
+# ======================= Official Shibuya references =======================
 SHIBUYA_GUIDE_URL = "https://www.city.shibuya.tokyo.jp/contents/living-in-shibuya/en/daily/garbage.html"
 SHIBUYA_POSTER_EN = "https://files.city.shibuya.tokyo.jp/assets/12995aba8b194961be709ba879857f70/bfda2f5d763343b5a0b454087299d57f/2024wakedashiEnglish.pdf#page=2"
 SHIBUYA_PLASTICS_NOTICE = "https://files.city.shibuya.tokyo.jp/assets/12995aba8b194961be709ba879857f70/0cdf099fdfe8456fbac12bb5ad7927e4/assets_kusei_ShibuyaCityNews2206_e.pdf#page=1"
@@ -115,6 +120,13 @@ ICON_AL    = "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1a/Recyclin
 ICON_STEEL = "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Recycling_steel.svg/120px-Recycling_steel.svg.png"
 ICON_PLA   = "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8b/Recycling_pla.svg/120px-Recycling_pla.svg.png"
 
+# SDG icon images (United Nations)
+SDG_11 = "https://www.un.org/en/file/60457"  # Sustainable Cities and Communities
+SDG_12 = "https://www.un.org/en/file/60460"  # Responsible Consumption and Production
+SDG_13 = "https://www.un.org/en/file/60463"  # Climate Action
+SDG_14 = "https://www.un.org/en/file/60466"  # Life Below Water
+
+# ======================= Guidance content =======================
 GUIDE = {
     "Clear plastic bottle": {
         "title": "Shibuya disposal: PET bottle (resource)",
@@ -134,7 +146,7 @@ GUIDE = {
         "recycles_to": ["New PET bottles", "Fibers for clothing and bags", "Sheets/films"],
         "facts": [
             {
-                "text": "Japan’s reported 87% plastic 'recycling' includes a large share of thermal recovery. Clean, separated PET enables high-value bottle-to-bottle.",
+                "text": "Japan’s reported plastic 'recycling' rate includes thermal recovery; clean PET enables high-value bottle-to-bottle.",
                 "url": "https://japan-forward.com/japans-plastic-recycling-the-unseen-reality/"
             },
             {
@@ -155,18 +167,24 @@ GUIDE = {
             "Clean metal cans keep a high-value recycling stream.",
             "Aluminum recycling saves major energy vs producing new metal."
         ],
-        "steps": ["Rinse the can.", "Put cans in a transparent bag for cans."],
+        # Shibuya poster says "Rinse the inside before disposing" (no crushing required).
+        # We present "lightly crush/squeeze" as optional if allowed locally.
+        "steps": [
+            "Rinse the can.",
+            "Optional: Lightly crush/squeeze to save space (only if your building/bin instructions allow).",
+            "Put cans in a transparent bag for cans."
+        ],
         "recycles_to": [
             "New beverage cans (can-to-can)",
             "Automotive & construction parts (aluminum)",
         ],
         "facts": [
             {
-                "text": "Coca-Cola Bottlers Japan promotes CAN-to-CAN, including products using 100% recycled aluminum bodies.",
+                "text": "Coca-Cola Bottlers Japan promotes CAN-to-CAN, including products using recycled aluminum bodies.",
                 "url": "https://en.ccbji.co.jp/news/detail.php?id=1347"
             }
         ],
-        "images": [],
+        "images": [],   # (If you find a municipality can-steps image you like, add URLs here.)
         "icons": [ICON_AL, ICON_STEEL],
         "link": SHIBUYA_GUIDE_URL,
         "poster": SHIBUYA_POSTER_EN,
@@ -245,11 +263,9 @@ def show_shibuya_guidance(label: str, count: int = 0):
       </div>
     """, unsafe_allow_html=True)
 
-    # Icons (recycling marks)
     if info.get("icons"):
         st.image(info["icons"], width=48, caption=[""]*len(info["icons"]))
 
-    # Two-column if we have PET step illustrations
     imgs = info.get("images") or []
     if imgs:
         left, right = st.columns([1, 2], vertical_alignment="center")
@@ -260,7 +276,6 @@ def show_shibuya_guidance(label: str, count: int = 0):
     else:
         _guidance_text(info)
 
-    # Links
     st.markdown('<div class="eco-links">', unsafe_allow_html=True)
     if info.get("poster"): _guide_link(info["poster"], "Open Shibuya poster")
     _guide_link(info["link"], "Official Shibuya guidance (site)")
@@ -317,7 +332,7 @@ def pil_to_bgr(pil_img: Image.Image) -> np.ndarray:
     arr = np.array(pil_img.convert("RGB"))
     return arr[:, :, ::-1]
 
-# --- NEW: robust label drawing that never clips at the top ---
+# Robust label drawing that avoids clipping
 def draw_boxes(bgr, dets):
     import cv2
     out = bgr.copy()
@@ -333,14 +348,12 @@ def draw_boxes(bgr, dets):
         fs, thick = 0.5, 1
         (tw, th), _ = cv2.getTextSize(label, font, fs, thick)
 
-        # Try above the box; if it would clip, place just inside the box
         y_text = y1 - 4
-        if y_text - th - 4 < 0:  # not enough space above
+        if y_text - th - 4 < 0:
             y_text = min(y1 + th + 6, H - 2)
 
         x_text = max(0, min(x1, W - tw - 6))
 
-        # Green filled pill background
         x_bg1, y_bg1 = x_text, max(0, y_text - th - 4)
         x_bg2, y_bg2 = min(x_text + tw + 6, W - 1), min(y_text + 2, H - 1)
         cv2.rectangle(out, (x_bg1, y_bg1), (x_bg2, y_bg2), color, -1)
@@ -381,17 +394,16 @@ st.markdown('<div class="section">', unsafe_allow_html=True)
 st.markdown("#### How to use")
 st.markdown("""
 <ol class="howto">
-  <li>Select <b>Camera</b> (phone) or <b>Upload image</b>.</li>
+  <li>Select <b>Upload image</b> (or open your <b>Camera</b>).</li>
   <li>Tap <b>Run detection</b>.</li>
   <li>Follow the card(s) below for Shibuya disposal steps.</li>
 </ol>
 """, unsafe_allow_html=True)
 
-# Minimum filters by default (even if Advanced is unopened)
+# Defaults (minimum filters)
 _MIN_CONF = 0.05; _MIN_IOU = 0.10; _MIN_IMGSZ = _closest_size(DEFAULT_IMGSZ, IMGSZ_OPTIONS)
 _MIN_BOTTLE = 0.00; _MIN_CAN = 0.00; _MIN_CAP = 0.00; _MIN_AREA_PCT = 0.0; _MIN_TTA = False
 
-# We keep Advanced controls, but default everything to min
 with st.expander("Advanced settings (optional)"):
     preset = st.radio("Preset", ["Minimum filters", "Recommended", "Strict"], index=0, horizontal=True)
     conf = _MIN_CONF; iou = _MIN_IOU; imgsz = _MIN_IMGSZ
@@ -411,13 +423,14 @@ with st.expander("Advanced settings (optional)"):
     min_area_pct = c4.slider("Min box area (%)", 0.0, 5.0, min_area_pct, 0.1, help="Ignore tiny boxes by percent of image area.")
     tta = st.toggle("Test time augmentation", value=tta, help="Slower. Sometimes reduces false positives.")
 
+# If Advanced is closed, still use minimums
 if "conf" not in locals():
     conf = _MIN_CONF; iou = _MIN_IOU; imgsz = _MIN_IMGSZ
     bottle_min = _MIN_BOTTLE; can_min = _MIN_CAN; cap_min = _MIN_CAP
     min_area_pct = _MIN_AREA_PCT; tta = _MIN_TTA
 
-# Input controls (Camera first)
-src = st.radio("Input source", ["Camera", "Upload image"], horizontal=True)
+# Input controls (default = Upload image)
+src = st.radio("Input source", ["Upload image", "Camera"], index=0, horizontal=True)
 image = None
 if src == "Upload image":
     up = st.file_uploader("Choose an image", type=["jpg", "jpeg", "png"])
@@ -504,22 +517,27 @@ if image is not None:
                     st.caption("No Shibuya guidance to show for these detections.")
 st.markdown('</div>', unsafe_allow_html=True)  # end section
 
-# ======================= (Optional) Feature explainer lower on page =======================
+# ======================= Impact & SDGs =======================
 st.markdown('<div class="section">', unsafe_allow_html=True)
-st.markdown("#### Why this helps")
-col1,col2,col3 = st.columns(3)
-def feature_card(col, title, body, key):
-    with col:
-        st.markdown('<div style="border:1px solid var(--agri-border); border-radius:16px; padding:14px; background:#fff;">', unsafe_allow_html=True)
-        imgpath = resolve_asset(FEATURE_IMAGES.get(key))
-        if imgpath:
-            st.image(imgpath, use_container_width=True)
-        st.markdown(f"<h4 style='margin:.4rem 0 .2rem 0'>{title}</h4><p>{body}</p>", unsafe_allow_html=True)
-        link = FEATURE_LINKS.get(key, "#")
-        st.markdown(f"<a class='eco-link' href='{link}' target='_blank' rel='noopener'>Learn more</a>", unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
-
-feature_card(col1, "Cleaner Streets", "Instant guidance reduces litter & contamination in public bins.", "cleaner")
-feature_card(col2, "High-value Recycling", "Separate PET vs PP/PE caps so bottles can go bottle-to-bottle.", "recycling")
-feature_card(col3, "Impact Insights", "Track items guided, diversion rate, and learning engagement.", "insights")
+st.markdown("#### Impact & SDGs")
+st.markdown("""
+- **Carbon credits (what it means):** a carbon credit represents **1 tonne of CO₂-equivalent** reduced or removed.  
+  Individuals *can* purchase voluntary credits (e.g., via the UN Carbon Offset Platform). Compliance credits are typically for companies under regulations.  
+  *Note:* This app does not issue credits; it can show guidance and counts that help reduce contamination and potentially enable future carbon-impact estimations.
+""")
+colA, colB = st.columns([1,1])
+with colA:
+    st.markdown("**Learn more:**")
+    st.markdown("- World Bank explainer on carbon credits (1 tCO₂e per credit)")
+    st.markdown("- UN Carbon Offset Platform (individuals/companies can buy voluntary credits)")
+with colB:
+    st.markdown("**Our SDGs focus:**")
+    st.markdown("""
+<div class="sdg-row">
+  <div class="sdg-card"><img src='""" + SDG_12 + """'><div class="txt">12 Responsible Consumption & Production</div></div>
+  <div class="sdg-card"><img src='""" + SDG_11 + """'><div class="txt">11 Sustainable Cities & Communities</div></div>
+  <div class="sdg-card"><img src='""" + SDG_13 + """'><div class="txt">13 Climate Action</div></div>
+  <div class="sdg-card"><img src='""" + SDG_14 + """'><div class="txt">14 Life Below Water</div></div>
+</div>
+""", unsafe_allow_html=True)
 st.markdown('</div>', unsafe_allow_html=True)
