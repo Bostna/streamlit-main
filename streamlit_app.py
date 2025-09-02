@@ -125,10 +125,9 @@ ICON_STEEL = "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Recyclin
 ICON_PLA   = "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8b/Recycling_pla.svg/120px-Recycling_pla.svg.png"
 
 # SDG icon images (official UN files)
-SDG_11 = "https://sdgs.un.org/sites/default/files/2020-07/E_SDG_Icons-11.jpg"
-SDG_12 = "https://sdgs.un.org/sites/default/files/2020-07/E_SDG_Icons-12.jpg"
-SDG_13 = "https://sdgs.un.org/sites/default/files/2020-07/E_SDG_Icons-13.jpg"
-SDG_14 = "https://sdgs.un.org/sites/default/files/2020-07/E_SDG_Icons-14.jpg"
+SDG_11 = "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d6/Sustainable_Development_Goal_11SustainableCities.svg/500px-Sustainable_Development_Goal_11SustainableCities.svg.png"
+SDG_12 = "https://upload.wikimedia.org/wikipedia/commons/thu…Development_Goal_12ResponsibleConsumption.svg.png"
+SDG_13 = "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7b/Sustainable_Development_Goal_13Climate.svg/600px-Sustainable_Development_Goal_13Climate.svg.png"
 
 # Carbon-credit helpful links
 LINK_UN_CNP  = "https://unfccc.int/climate-action/united-nations-carbon-offset-platform"
@@ -584,10 +583,7 @@ sdg_html = f"""
     <img src="{SDG_13}" alt="SDG 13 icon">
     <div class="txt">13 Climate Action</div>
   </div>
-  <div class="sdg-card">
-    <img src="{SDG_14}" alt="SDG 14 icon">
-    <div class="txt">14 Life Below Water</div>
-  </div>
+ 
 </div>
 """
 st.markdown(sdg_html, unsafe_allow_html=True)
