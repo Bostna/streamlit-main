@@ -6,7 +6,7 @@ from PIL import Image
 import streamlit as st
 from ultralytics import YOLO
 
-st.set_page_config(page_title="When AI Sees Litter — Shibuya", page_icon="♻️", layout="wide")
+st.set_page_config(page_title="When AI Sees Litter", page_icon="♻️", layout="wide")
 
 # ======================= THEME (Light agriculture vibe) =======================
 def apply_agri_theme():
