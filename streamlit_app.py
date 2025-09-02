@@ -64,6 +64,11 @@ def apply_agri_theme():
       .eco-link:hover{ background: var(--agri-pill); }
 
       .howto li{ margin:2px 0; }
+
+      .citybar{ display:flex; align-items:center; gap:10px; }
+      .citybadge{ display:inline-block; background: var(--agri-pill); padding:4px 10px;
+                  border-radius:999px; border:1px solid var(--agri-border); color: var(--agri-primary-dark); }
+
       .sdg-row{ display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
       .sdg-card{ display:flex; gap:10px; align-items:center; border:1px solid var(--agri-border);
                  background:#fff; padding:10px 12px; border-radius:14px; }
@@ -79,31 +84,13 @@ def apply_agri_theme():
 apply_agri_theme()
 
 # ======================= Config & Model =======================
-MODEL_URL     = os.getenv("MODEL_URL", "https://raw.githubusercontent.com/Bellzum/streamlit-main/blob/main/yolo_tue_3classes.pt")
+MODEL_URL     = os.getenv("MODEL_URL", "https://raw.githubusercontent.com/Bellzum/streamlit-main/main/yolo_tue_3classes.pt")
 LOCAL_MODEL   = os.getenv("LOCAL_MODEL", "best.pt")
 CACHED_PATH   = "/tmp/models/best.pt"
 DEFAULT_IMGSZ = int(os.getenv("IMGSZ", "640"))
 
 CLASS_NAMES   = ["Clear plastic bottle", "Drink can", "Plastic bottle cap"]
 IMGSZ_OPTIONS = [320, 416, 512, 640, 800, 960, 1280]
-
-# ======================= Links + feature images (optional) =======================
-FEATURE_LINKS = {
-    "cleaner": os.getenv("LINK_CLEANER", "https://www.city.shibuya.tokyo.jp/contents/living-in-shibuya/en/daily/garbage.html"),
-    "recycling": os.getenv("LINK_RECYCLING", "https://www.petbottle-rec.gr.jp/english/actual.html"),
-    "insights": os.getenv("LINK_INSIGHTS", "#"),
-}
-FEATURE_IMAGES = {
-    "cleaner": "assets/cleaner.jpg",
-    "recycling": "assets/recycling.jpg",
-    "insights": "assets/insights.jpg",
-}
-def resolve_asset(path: str):
-    if not path: return None
-    if os.path.exists(path): return path
-    base = os.path.basename(path)
-    alt = os.path.join("assets", base)
-    return alt if os.path.exists(alt) else None
 
 # ======================= Official Shibuya references =======================
 SHIBUYA_GUIDE_URL = "https://www.city.shibuya.tokyo.jp/contents/living-in-shibuya/en/daily/garbage.html"
@@ -112,10 +99,10 @@ SHIBUYA_PLASTICS_NOTICE = "https://files.city.shibuya.tokyo.jp/assets/12995aba8b
 
 # PET step photos (Fukuoka City — illustrates same steps)
 FUKUOKA_PET_STEPS = [
-    "https://kateigomi-bunbetsu.city.fukuoka.lg.jp/files/Rules/images/bottles/ph04.png",  # remove cap
-    "https://kateigomi-bunbetsu.city.fukuoka.lg.jp/files/Rules/images/bottles/ph05.png",  # remove label
-    "https://kateigomi-bunbetsu.city.fukuoka.lg.jp/files/Rules/images/bottles/ph06.png",  # rinse
-    "https://kateigomi-bunbetsu.city.fukuoka.lg.jp/files/Rules/images/bottles/ph07.png",  # crush
+    "https://kateigomi-bunbetsu.city.fukuoka.lg.jp/files/Rules/images/bottles/ph04.png",
+    "https://kateigomi-bunbetsu.city.fukuoka.lg.jp/files/Rules/images/bottles/ph05.png",
+    "https://kateigomi-bunbetsu.city.fukuoka.lg.jp/files/Rules/images/bottles/ph06.png",
+    "https://kateigomi-bunbetsu.city.fukuoka.lg.jp/files/Rules/images/bottles/ph07.png",
 ]
 
 # Recycling marks (Wikipedia Commons PNG thumbnails)
@@ -125,9 +112,10 @@ ICON_STEEL = "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Recyclin
 ICON_PLA   = "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8b/Recycling_pla.svg/120px-Recycling_pla.svg.png"
 
 # SDG icon images (official UN files)
-SDG_11 = "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d6/Sustainable_Development_Goal_11SustainableCities.svg/500px-Sustainable_Development_Goal_11SustainableCities.svg.png"
-SDG_12 = "https://upload.wikimedia.org/wikipedia/commons/thumb/6/65/Sustainable_Development_Goal_12ResponsibleConsumption.svg/500px-Sustainable_Development_Goal_12ResponsibleConsumption.svg.png"
-SDG_13 = "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7b/Sustainable_Development_Goal_13Climate.svg/600px-Sustainable_Development_Goal_13Climate.svg.png"
+SDG_11 = "https://sdgs.un.org/sites/default/files/2020-07/E_SDG_Icons-11.jpg"
+SDG_12 = "https://sdgs.un.org/sites/default/files/2020-07/E_SDG_Icons-12.jpg"
+SDG_13 = "https://sdgs.un.org/sites/default/files/2020-07/E_SDG_Icons-13.jpg"
+SDG_14 = "https://sdgs.un.org/sites/default/files/2020-07/E_SDG_Icons-14.jpg"
 
 # Carbon-credit helpful links
 LINK_UN_CNP  = "https://unfccc.int/climate-action/united-nations-carbon-offset-platform"
@@ -141,8 +129,8 @@ LINK_JCREDIT = "https://japancredit.go.jp/english/"
 HANWA_CAN2CAN = "https://www.hanwa.co.jp/images/csr/business/img_5_01.png"
 CCBJI_CAN2CAN = "https://en.ccbji.co.jp/upload/images/20221222-1-1(5).jpg"
 
-# ======================= Guidance content =======================
-GUIDE = {
+# ======================= Guidance content (Shibuya) =======================
+GUIDE_SHIBUYA = {
     "Clear plastic bottle": {
         "title": "Shibuya disposal: PET bottle (resource)",
         "emoji": "🧴",
@@ -202,7 +190,6 @@ GUIDE = {
                 "url": HANWA_CAN2CAN
             }
         ],
-        # Show both Hanwa and CCBJI flow images on the card
         "images": [HANWA_CAN2CAN, CCBJI_CAN2CAN],
         "icons": [ICON_AL, ICON_STEEL],
         "link": SHIBUYA_GUIDE_URL,
@@ -231,84 +218,10 @@ GUIDE = {
     },
 }
 
-def _guide_link(url: str, label: str):
-    st.markdown(f'<a class="eco-link" href="{url}" target="_blank" rel="noopener">{label}</a>', unsafe_allow_html=True)
-
-def _guidance_text(info: dict):
-    if info.get("materials"):
-        st.markdown(f'<div class="eco-meta"><strong>Material:</strong> {info["materials"]}</div>', unsafe_allow_html=True)
-    if info.get("why_separate"):
-        st.markdown('<div class="eco-section-title">Why separate?</div>', unsafe_allow_html=True)
-        st.markdown('<ul class="eco-list">', unsafe_allow_html=True)
-        for reason in info["why_separate"]:
-            st.markdown(f'<li>{reason}</li>', unsafe_allow_html=True)
-        st.markdown('</ul>', unsafe_allow_html=True)
-
-    st.markdown('<div class="eco-section-title">How to put out</div>', unsafe_allow_html=True)
-    st.markdown('<ul class="eco-list">', unsafe_allow_html=True)
-    for step in info["steps"]:
-        st.markdown(f'<li>{step}</li>', unsafe_allow_html=True)
-    st.markdown('</ul>', unsafe_allow_html=True)
-
-    if info.get("recycles_to"):
-        st.markdown('<div class="eco-section-title">Commonly recycled into</div>', unsafe_allow_html=True)
-        st.markdown('<div class="chip-row">', unsafe_allow_html=True)
-        for item in info["recycles_to"]:
-            st.markdown(f'<div class="chip">{item}</div>', unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    facts = info.get("facts", [])
-    if facts:
-        st.markdown('<div class="eco-section-title">Did you know?</div>', unsafe_allow_html=True)
-        st.markdown('<ul class="eco-list">', unsafe_allow_html=True)
-        for fact in facts:
-            st.markdown(f'<li>{fact["text"]}</li>', unsafe_allow_html=True)
-        st.markdown('</ul>', unsafe_allow_html=True)
-        st.markdown('<div class="eco-links">', unsafe_allow_html=True)
-        for fact in facts:
-            _guide_link(fact["url"], "Learn more")
-        st.markdown('</div>', unsafe_allow_html=True)
-
-def show_shibuya_guidance(label: str, count: int = 0):
-    info = GUIDE.get(label)
-    if not info:
-        return
-    st.markdown('<div class="eco-card">', unsafe_allow_html=True)
-    st.markdown(f"""
-      <div class="eco-head">
-        <div class="eco-emoji">{info['emoji']}</div>
-        <div class="eco-title">{info['title']}</div>
-        <div class="eco-badge">Detected: {count}</div>
-      </div>
-    """, unsafe_allow_html=True)
-
-    # Icons (recycling marks)
-    if info.get("icons"):
-        st.image(info["icons"], width=48, caption=[""]*len(info["icons"]))
-
-    # Images (PET steps or flow diagrams)
-    imgs = info.get("images") or []
-    if imgs:
-        left, right = st.columns([1, 2], vertical_alignment="center")
-        with left:
-            if len(imgs) == 1:
-                st.image(imgs[0], use_container_width=True)   # large single
-            elif len(imgs) <= 3:
-                for im in imgs:
-                    st.image(im, use_container_width=True)   # stack a few, readable
-            else:
-                st.image(imgs, width=160, caption=[""]*len(imgs))  # many (thumbnail)
-        with right:
-            _guidance_text(info)
-    else:
-        _guidance_text(info)
-
-    # Links
-    st.markdown('<div class="eco-links">', unsafe_allow_html=True)
-    if info.get("poster"): _guide_link(info["poster"], "Open Shibuya poster")
-    _guide_link(info["link"], "Official Shibuya guidance (site)")
-    st.markdown('</div>', unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
+# Add more cities later: {"city_id": GUIDE_DICT}
+GUIDE_BY_CITY = {
+    "shibuya": GUIDE_SHIBUYA
+}
 
 # ======================= Helpers =======================
 def _download_file(url: str, dest: str):
@@ -360,36 +273,30 @@ def pil_to_bgr(pil_img: Image.Image) -> np.ndarray:
     arr = np.array(pil_img.convert("RGB"))
     return arr[:, :, ::-1]
 
-# Robust label drawing that avoids clipping
 def draw_boxes(bgr, dets):
     import cv2
     out = bgr.copy()
     H, W = out.shape[:2]
     color = (28,160,78)  # theme green (BGR)
-
     for d in dets:
         x1, y1, x2, y2 = map(int, d["xyxy"])
         cv2.rectangle(out, (x1, y1), (x2, y2), color, 2)
-
         label = f'{d["class_name"]} {d["score"]:.2f}'
         font = cv2.FONT_HERSHEY_SIMPLEX
         fs, thick = 0.5, 1
         (tw, th), _ = cv2.getTextSize(label, font, fs, thick)
-
         y_text = y1 - 4
         if y_text - th - 4 < 0:
             y_text = min(y1 + th + 6, H - 2)
-
         x_text = max(0, min(x1, W - tw - 6))
-
         x_bg1, y_bg1 = x_text, max(0, y_text - th - 4)
         x_bg2, y_bg2 = min(x_text + tw + 6, W - 1), min(y_text + 2, H - 1)
         cv2.rectangle(out, (x_bg1, y_bg1), (x_bg2, y_bg2), color, -1)
         cv2.putText(out, label, (x_text + 3, y_text - 2), font, fs, (255, 255, 255), 1, cv2.LINE_AA)
-
     return Image.fromarray(out[:, :, ::-1])
 
 def _get_names_map(pred, model):
+    # Use checkpoint names if present, else fallback; replace with a forced map if needed later
     names_map = None
     if hasattr(pred, "names") and isinstance(pred.names, dict):
         names_map = pred.names
@@ -402,22 +309,112 @@ def _get_names_map(pred, model):
 def _closest_size(target: int, options: list[int]) -> int:
     return min(options, key=lambda x: abs(x - target))
 
-# ======================= HEADER =======================
-logo_col, title_col = st.columns([3, 5], vertical_alignment="center")  # was [1, 6]
+# ======================= Header + City selector =======================
+logo_col, title_col = st.columns([3, 5], vertical_alignment="center")
 with logo_col:
     if os.path.exists("logo.png"):
-        st.image("logo.png", use_container_width=True)  # fill the column width
+        st.image("logo.png", use_container_width=True)
 with title_col:
-    st.markdown(
-        "<div style='font-weight:800; font-size:1.6rem; line-height:1.2'>When AI Sees Litter — Shibuya</div>",
-        unsafe_allow_html=True
-    )
+    st.markdown("<div style='font-weight:800; font-size:1.6rem; line-height:1.2'>When AI Sees Litter — Shibuya</div>", unsafe_allow_html=True)
+
+# City selection (mock for now)
+st.markdown('<div class="section">', unsafe_allow_html=True)
+c1, c2 = st.columns([2, 6], vertical_alignment="center")
+with c1:
+    city_label = st.selectbox("City / Ward", ["Shibuya (Tokyo)"], index=0)
+with c2:
+    st.markdown("<div class='citybadge'>More cities coming soon</div>", unsafe_allow_html=True)
+st.markdown('</div>', unsafe_allow_html=True)
+
+# Resolve city id and guide map
+CITY_MAP = {"Shibuya (Tokyo)": "shibuya"}
+city_id = CITY_MAP[city_label]
+GUIDE = GUIDE_BY_CITY.get(city_id, {})
+
+# ======================= Hero =======================
 st.markdown("""
 <div class="hero">
-  <h1>Scan litter. Get Shibuya sorting guidance.</h1>
-  <p><span class="pill">Quick Detect</span> works on PET bottles, drink cans, and plastic bottle caps.</p>
+  <h1>Scan litter. Get local sorting guidance.</h1>
+  <p><span class="pill">Quick Detect</span> works on PET bottles, drink cans, and plastic bottle caps. — <b>{city}</b></p>
 </div>
-""", unsafe_allow_html=True)
+""".format(city=city_label), unsafe_allow_html=True)
+
+# ======================= Guidance renderer =======================
+def _guide_link(url: str, label: str):
+    st.markdown(f'<a class="eco-link" href="{url}" target="_blank" rel="noopener">{label}</a>', unsafe_allow_html=True)
+
+def _guidance_text(info: dict):
+    if info.get("materials"):
+        st.markdown(f'<div class="eco-meta"><strong>Material:</strong> {info["materials"]}</div>', unsafe_allow_html=True)
+    if info.get("why_separate"):
+        st.markdown('<div class="eco-section-title">Why separate?</div>', unsafe_allow_html=True)
+        st.markdown('<ul class="eco-list">', unsafe_allow_html=True)
+        for reason in info["why_separate"]:
+            st.markdown(f'<li>{reason}</li>', unsafe_allow_html=True)
+        st.markdown('</ul>', unsafe_allow_html=True)
+
+    st.markdown('<div class="eco-section-title">How to put out</div>', unsafe_allow_html=True)
+    st.markdown('<ul class="eco-list">', unsafe_allow_html=True)
+    for step in info["steps"]:
+        st.markdown(f'<li>{step}</li>', unsafe_allow_html=True)
+    st.markdown('</ul>', unsafe_allow_html=True)
+
+    if info.get("recycles_to"):
+        st.markdown('<div class="eco-section-title">Commonly recycled into</div>', unsafe_allow_html=True)
+        st.markdown('<div class="chip-row">', unsafe_allow_html=True)
+        for item in info["recycles_to"]:
+            st.markdown(f'<div class="chip">{item}</div>', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    facts = info.get("facts", [])
+    if facts:
+        st.markdown('<div class="eco-section-title">Did you know?</div>', unsafe_allow_html=True)
+        st.markdown('<ul class="eco-list">', unsafe_allow_html=True)
+        for fact in facts:
+            st.markdown(f'<li>{fact["text"]}</li>', unsafe_allow_html=True)
+        st.markdown('</ul>', unsafe_allow_html=True)
+        st.markdown('<div class="eco-links">', unsafe_allow_html=True)
+        for fact in facts:
+            _guide_link(fact["url"], "Learn more")
+        st.markdown('</div>', unsafe_allow_html=True)
+
+def show_guidance_card(label: str, count: int = 0):
+    info = GUIDE.get(label)
+    if not info:
+        return
+    st.markdown('<div class="eco-card">', unsafe_allow_html=True)
+    st.markdown(f"""
+      <div class="eco-head">
+        <div class="eco-emoji">{info['emoji']}</div>
+        <div class="eco-title">{info['title']}</div>
+        <div class="eco-badge">Detected: {count}</div>
+      </div>
+    """, unsafe_allow_html=True)
+
+    if info.get("icons"):
+        st.image(info["icons"], width=48, caption=[""]*len(info["icons"]))
+
+    imgs = info.get("images") or []
+    if imgs:
+        left, right = st.columns([1, 2], vertical_alignment="center")
+        with left:
+            if len(imgs) == 1:
+                st.image(imgs[0], use_container_width=True)
+            elif len(imgs) <= 3:
+                for im in imgs:
+                    st.image(im, use_container_width=True)
+            else:
+                st.image(imgs, width=160, caption=[""]*len(imgs))
+        with right:
+            _guidance_text(info)
+    else:
+        _guidance_text(info)
+
+    st.markdown('<div class="eco-links">', unsafe_allow_html=True)
+    if info.get("poster"): _guide_link(info["poster"], "Open local poster")
+    _guide_link(info["link"], "Official local guidance (site)")
+    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
 # ======================= QUICK DETECT (TOP) =======================
 st.markdown('<div class="section">', unsafe_allow_html=True)
@@ -426,7 +423,7 @@ st.markdown("""
 <ol class="howto">
   <li>Select <b>Upload image</b> (or open your <b>Camera</b>).</li>
   <li>Tap <b>Run detection</b>.</li>
-  <li>Follow the card(s) below for Shibuya disposal steps.</li>
+  <li>Follow the card(s) below for disposal steps — tailored to your selected city.</li>
 </ol>
 """, unsafe_allow_html=True)
 
@@ -536,15 +533,15 @@ if image is not None:
                     with st.expander("Counts (debug)", expanded=False):
                         st.bar_chart(pd.Series(counts).sort_values(ascending=False))
 
-                # Guidance cards
+                # Guidance cards (city-aware)
                 detected_labels = sorted({d["class_name"] for d in dets})
                 guide_labels = [lbl for lbl in detected_labels if lbl in GUIDE]
                 if guide_labels:
-                    st.subheader("Disposal instructions for Shibuya")
+                    st.subheader(f"Disposal instructions — {city_label}")
                     for lbl in guide_labels:
-                        show_shibuya_guidance(lbl, counts.get(lbl, 0))
+                        show_guidance_card(lbl, counts.get(lbl, 0))
                 else:
-                    st.caption("No Shibuya guidance to show for these detections.")
+                    st.caption("No local guidance to show for these detections.")
 st.markdown('</div>', unsafe_allow_html=True)  # end section
 
 # ======================= Impact & SDGs =======================
@@ -585,7 +582,10 @@ sdg_html = f"""
     <img src="{SDG_13}" alt="SDG 13 icon">
     <div class="txt">13 Climate Action</div>
   </div>
- 
+  <div class="sdg-card">
+    <img src="{SDG_14}" alt="SDG 14 icon">
+    <div class="txt">14 Life Below Water</div>
+  </div>
 </div>
 """
 st.markdown(sdg_html, unsafe_allow_html=True)
