@@ -406,7 +406,7 @@ def _closest_size(target: int, options: list[int]) -> int:
 logo_col, title_col = st.columns([1, 6], vertical_alignment="center")
 with logo_col:
     if os.path.exists("logo.png"):
-        st.image("logo.png", width=200)
+        st.image("logo.png", width=400)
 with title_col:
     st.markdown("<div style='font-weight:800; font-size:1.1rem;'>When AI Sees Litter — Shibuya</div>", unsafe_allow_html=True)
 
