@@ -7,7 +7,7 @@ import streamlit as st
 from ultralytics import YOLO
 
 # Live video
-from streamlit_webrtc import webrtc_streamer, VideoProcessorBase, RTCConfiguration
+from streamlit_webrtc import webrtc_streamer, VideoProcessorBase, RTCConfiguration, WebRtcMode
 import av, cv2
 from collections import Counter
 
@@ -27,7 +27,7 @@ def apply_theme():
       /* Chips & links */
       .pill{ display:inline-block; background:var(--pill); padding:2px 10px 4px 10px;
              border-radius:999px; color:var(--pri2); border:1px solid var(--bd); }
-      .eco-links{ display:flex; gap:10px; margin-top:10px; flex-wrap:wrap; }
+      .eco-links{ display:flex; gap:10px; margin-top:10px; margin-bottom:22px; flex-wrap:wrap; }
       .eco-link{ border-radius:999px; padding:8px 12px; border:1px solid var(--bd);
                  background:#fff; text-decoration:none !important; color:var(--pri2) !important; font-weight:700; }
       .eco-link:hover{ background:var(--pill); }
@@ -52,8 +52,12 @@ def apply_theme():
       .chip{ background:var(--pill); color:var(--pri2); border:1px solid var(--bd);
              border-radius:999px; padding:4px 10px; font-size:.88rem; }
 
-      /* SDGs row (local images @ 180px) - one row */
-      .sdg-caption{ text-align:center; font-weight:700; }
+      /* SDGs (clean spacing + aligned captions) */
+      .sdg-wrap{ margin-top:8px; }
+      .sdg-row{ display:grid; grid-template-columns: repeat(3, 1fr); gap:28px; align-items:start; }
+      .sdg-tile{ display:flex; flex-direction:column; align-items:center; }
+      .sdg-tile img{ width:180px; height:180px; object-fit:contain; border-radius:14px; display:block; }
+      .sdg-caption{ text-align:center; font-weight:800; margin-top:10px; }
 
       /* Remove all separators / default hr lines / expander borders */
       [data-testid="stDivider"], hr, [role="separator"]{ display:none !important; }
@@ -190,7 +194,6 @@ GUIDE_SHIBUYA = {
                 "url": SHIBUYA_PLASTICS_NOTICE
             }
         ],
-        # Add a clear "wash & dry" example image (from FP Corporation)
         "images": ["https://www.fpco.jp/dcms_media/image/appeal_img01_b.jpg"],
         "icons": [ICON_PLA],
         "link": SHIBUYA_GUIDE_URL,
@@ -235,7 +238,7 @@ def _ensure_model_path() -> str:
 
 def _cache_key_for(path: str) -> str:
     try:
-        return f"{path}:{os.path.getmtime(path)}:{os.path.getsize(path)}"
+        return f"{path}:{os.path.getmtime(path)}}:{os.path.getsize(path)}"
     except Exception:
         return path
 
@@ -272,7 +275,6 @@ def _guidance_text(info: dict):
     st.markdown('</ul>', unsafe_allow_html=True)
 
     if info.get("why_separate"):
-        # renamed per request:
         st.markdown('<div class="eco-section-title">How to put out</div>', unsafe_allow_html=True)
         st.markdown('<ul class="eco-list">', unsafe_allow_html=True)
         for reason in info["why_separate"]:
@@ -281,7 +283,7 @@ def _guidance_text(info: dict):
 
     if info.get("recycles_to"):
         st.markdown('<div class="eco-section-title">Commonly recycled into</div>', unsafe_allow_html=True)
-        st.markown('<div class="chip-row">', unsafe_allow_html=True)
+        st.markdown('<div class="chip-row">', unsafe_allow_html=True)
         for item in info["recycles_to"]:
             st.markdown(f'<div class="chip">{item}</div>', unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
@@ -312,7 +314,7 @@ def show_guidance_card(label: str, count: int = 0, GUIDE=None):
         st.image(info["icons"], width=48, caption=[""]*len(info["icons"]))
     imgs = info.get("images") or []
     if imgs:
-        left, right = st.columns([1, 2], vertical_alignment="center")
+        left, right = st.columns([1, 2])
         with left:
             if len(imgs) == 1:
                 st.image(imgs[0], use_container_width=True)
@@ -334,7 +336,6 @@ def show_guidance_card(label: str, count: int = 0, GUIDE=None):
 class YOLOProcessor(VideoProcessorBase):
     def __init__(self):
         self.model = load_model()
-        # Recommended defaults (your chosen values)
         self.conf = 0.0
         self.iou = 0.0
         self.imgsz = 200
@@ -356,7 +357,6 @@ class YOLOProcessor(VideoProcessorBase):
         bgr = frame.to_ndarray(format="bgr24")
         self._cnt = (self._cnt + 1) % (self.frame_skip + 1)
         if self._cnt != self.frame_skip:
-            # show incoming frame without inference this time
             return av.VideoFrame.from_ndarray(bgr, format="bgr24")
 
         names_map = self._names_map()
@@ -380,7 +380,6 @@ class YOLOProcessor(VideoProcessorBase):
                 if area < min_area: continue
                 dets.append({"xyxy":[x1,y1,x2,y2], "class_name":name, "score":score})
 
-        # Draw boxes
         color = (28,160,78)  # theme green
         for d in dets:
             x1, y1, x2, y2 = map(int, d["xyxy"])
@@ -392,13 +391,12 @@ class YOLOProcessor(VideoProcessorBase):
             cv2.rectangle(bgr, (xt, max(0, yt - th - 4)), (min(xt + tw + 6, W - 1), min(yt + 2, H - 1)), color, -1)
             cv2.putText(bgr, label, (xt + 3, yt - 2), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1, cv2.LINE_AA)
 
-        # keep state for the "Capture for guidance" button
         self.last_bgr = bgr
         self.last_dets = dets
         return av.VideoFrame.from_ndarray(bgr, format="bgr24")
 
 # ======================= HEADER (logo only) =======================
-logo_col, _ = st.columns([3, 5], vertical_alignment="center")
+logo_col, _ = st.columns([3, 5])
 with logo_col:
     if os.path.exists("logo.png"):
         st.image("logo.png", use_container_width=True)
@@ -407,7 +405,7 @@ with logo_col:
 st.markdown("### Let’s Start Sorting!")
 
 # City/Ward block (below heading, before step 1)
-c1, c2 = st.columns([2, 6], vertical_alignment="center")
+c1, c2 = st.columns([2, 6])
 with c1:
     city_label = st.selectbox("City / Ward", ["Shibuya (Tokyo)"], index=0)
 with c2:
@@ -432,7 +430,7 @@ if src == "Live (beta)":
     RTC_CONFIG = RTCConfiguration({"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]})
     webrtc_ctx = webrtc_streamer(
         key="webrtc-litter",
-        mode="SENDRECV",
+        mode=WebRtcMode.SENDRECV,
         rtc_configuration=RTC_CONFIG,
         media_stream_constraints={"video": True, "audio": False},
         video_processor_factory=YOLOProcessor,
@@ -457,7 +455,6 @@ if src == "Live (beta)":
                         st.caption("No local guidance available for these detections.")
                 else:
                     st.info("No objects detected yet. Hold the item steady and try again.")
-    # skip static image flow when in live mode
 else:
     # Static (Upload image / Camera)
     auto_run = st.toggle("Auto-run detection", value=True, help="Run detection automatically after you choose/take a photo.")
@@ -471,7 +468,6 @@ else:
         if shot: image = Image.open(shot).convert("RGB")
 
     # ======================= Advanced settings (below inputs) =======================
-    # Recommended defaults (auto) — imgsz=200 as requested
     _REC_CONF=0.00; _REC_IOU=0.00; _REC_IMGSZ=200
     _REC_BOTTLE=0.20; _REC_CAN=0.20; _REC_FOAM=0.20; _REC_AREA_PCT=0.20; _REC_TTA=False
 
@@ -502,7 +498,6 @@ else:
                                   help="Ignore tiny boxes by percent of image area.")
         tta = st.toggle("Test time augmentation", value=tta, help="Slower; sometimes reduces false positives.")
 
-    # Optional: load model
     if st.button("Load model"):
         _ = load_model()
         st.success("Model ready.")
@@ -565,7 +560,6 @@ else:
             cv2.putText(out, label, (x_text + 3, y_text - 2), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1, cv2.LINE_AA)
         st.image(Image.fromarray(out[:, :, ::-1]), caption="Detections", use_container_width=True)
 
-    # Auto-run workflow
     if image is not None:
         st.image(image, caption="Input", use_container_width=True)
         should_run = auto_run
@@ -586,7 +580,7 @@ else:
             else:
                 st.info("All detections were filtered by thresholds. Try lowering per-class thresholds or min box area.")
 
-# ======================= Impact & SDGs (one row) =======================
+# ======================= Impact & SDGs (clean spacing + aligned captions) =======================
 st.markdown("#### Impact & SDGs")
 st.markdown("""
 - **Carbon credits (what they are):** A carbon credit represents **1 tonne of CO₂-equivalent** reduced or removed. Credits exist only when a **registered project** follows an **approved methodology** and passes **MRV**; they are then **issued on a registry** (e.g., Gold Standard, Verra, or Japan’s J-Credit).  
@@ -602,17 +596,20 @@ st.markdown(
   <a class="eco-link" href="{LINK_VERRA}"   target="_blank" rel="noopener">Verra VCS</a>
   <a class="eco-link" href="{LINK_JCREDIT}" target="_blank" rel="noopener">Japan J-Credit</a>
 </div>
+<div class="sdg-wrap">
+  <div class="sdg-row">
+    <div class="sdg-tile">
+      <img src="sdg12.png" alt="SDG 12"/>
+      <div class="sdg-caption">12 Responsible Consumption &amp; Production</div>
+    </div>
+    <div class="sdg-tile">
+      <img src="sdg11.png" alt="SDG 11"/>
+      <div class="sdg-caption">11 Sustainable Cities &amp; Communities</div>
+    </div>
+    <div class="sdg-tile">
+      <img src="sdg13.png" alt="SDG 13"/>
+      <div class="sdg-caption">13 Climate Action</div>
+    </div>
+  </div>
+</div>
 """, unsafe_allow_html=True)
-
-col1, col2, col3 = st.columns(3)
-def sdg_cell(col, path, label):
-    with col:
-        if os.path.exists(path):
-            st.image(path, width=180)
-        else:
-            st.markdown(f"*Missing {path}*")
-        st.markdown(f"<div class='sdg-caption'>{label}</div>", unsafe_allow_html=True)
-
-sdg_cell(col1, "sdg12.png", "12 Responsible Consumption & Production")
-sdg_cell(col2, "sdg11.png", "11 Sustainable Cities & Communities")
-sdg_cell(col3, "sdg13.png", "13 Climate Action")
