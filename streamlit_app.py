@@ -7,7 +7,8 @@ from PIL import Image
 import streamlit as st
 from ultralytics import YOLO
 import cv2
-from collections import Counter
+from urllib.parse import urlparse
+# from collections import Counter  # (unused)
 
 st.set_page_config(page_title="When AI Sees Litter · Shibuya", page_icon="♻️", layout="wide")
 
@@ -30,6 +31,10 @@ def apply_theme():
       .eco-link:hover{ background:var(--pill); }
       .citybadge{ display:inline-block; background:var(--pill); padding:4px 10px;
                   border-radius:999px; border:1px solid var(--bd); color:var(--pri2); }
+
+      /* NEW: align the badge with the selectbox input */
+      .badge-align{ margin-top:28px; }
+      @media (max-width:640px){ .badge-align{ margin-top:8px; } }
 
       .eco-card{ background:#fff; border:none; border-radius:22px; padding:18px 16px;
                  margin:10px 0 18px 0; box-shadow:0 3px 16px rgba(0,0,0,.04); }
@@ -153,7 +158,7 @@ GUIDE_SHIBUYA = {
             {"text": "Hanwa explains used aluminum cans are cleaned, melted and supplied as remelt scrap ingots then used again as cans.",
              "url": HANWA_CAN2CAN},
         ],
-        "images": [HANWA_CAN2CAN],
+        "images": [HANWA_CAN2CAN, CCBJI_CAN2CAN],
         "icons": [ICON_AL, ICON_STEEL],
         "link": SHIBUYA_GUIDE_URL,
         "poster": SHIBUYA_POSTER_EN,
@@ -250,6 +255,10 @@ def _get_names_map(pred, model):
     if hasattr(model, "names") and isinstance(model.names, list): return {i:n for i,n in enumerate(model.names)}
     return {0:"Clear plastic bottle", 1:"Drink can", 2:"Styrofoam piece"}
 
+def _domain_label(url: str) -> str:
+    try: return urlparse(url).netloc.replace("www.","")
+    except Exception: return "link"
+
 def _guide_link(url: str, label: str):
     st.markdown(f'<a class="eco-link" href="{url}" target="_blank" rel="noopener">{label}</a>', unsafe_allow_html=True)
 
@@ -282,7 +291,9 @@ def _guidance_text(info: dict):
             st.markdown(f'<li>{fact["text"]}</li>', unsafe_allow_html=True)
         st.markdown('</ul>', unsafe_allow_html=True)
         st.markdown('<div class="eco-links">', unsafe_allow_html=True)
-        for fact in facts: _guide_link(fact["url"], "Learn more")
+        for fact in facts:
+            dom = _domain_label(fact["url"])
+            _guide_link(fact["url"], f"Learn more · {dom}")
         st.markdown('</div>', unsafe_allow_html=True)
 
 def show_guidance_card(label: str, count: int = 0, GUIDE=None):
@@ -313,8 +324,9 @@ def show_guidance_card(label: str, count: int = 0, GUIDE=None):
     else:
         _guidance_text(info)
     st.markdown('<div class="eco-links">', unsafe_allow_html=True)
-    if info.get("poster"): _guide_link(info["poster"], "Open local poster")
-    _guide_link(info["link"], "Official local guidance (site)")
+    if info.get("poster"):
+        _guide_link(info["poster"], f"📄 Poster (PDF) · {_domain_label(info['poster'])}")
+    _guide_link(info["link"], f"🌐 Official guidance · {_domain_label(info['link'])}")
     st.markdown('</div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -332,7 +344,7 @@ c1, c2 = st.columns([2, 6])
 with c1:
     city_label = st.selectbox("City / Ward", ["Shibuya (Tokyo)"], index=0)
 with c2:
-    st.markdown("<div class='citybadge'>More cities coming soon</div>", unsafe_allow_html=True)
+    st.markdown("<div class='citybadge badge-align'>More cities coming soon</div>", unsafe_allow_html=True)
 city_id = CITY_MAP[city_label]
 GUIDE = GUIDE_BY_CITY.get(city_id, {})
 
@@ -428,15 +440,25 @@ def run_detection(image_pil: Image.Image):
         counts[name] = counts.get(name, 0) + 1
     return dets, counts
 
+# level colors (BGR): darker for higher level
+def _level_for(s: float) -> str:
+    if s >= 0.80: return "High"
+    if s >= 0.60: return "Moderate"
+    if s >= 0.40: return "Low"
+    return "Very Low"
+def _level_color(level: str) -> tuple[int,int,int]:
+    return {"High":(35,110,65),"Moderate":(70,150,100),"Low":(130,190,150),"Very Low":(195,225,205)}.get(level,(28,160,78))
+
 def draw_and_show(image_pil: Image.Image, dets):
     bgr = np.array(image_pil.convert("RGB"))[:, :, ::-1]
     out = bgr.copy()
-    color = (28,160,78)
     H, W = out.shape[:2]
     for d in dets:
         x1, y1, x2, y2 = map(int, d["xyxy"])
+        lvl = _level_for(float(d["score"]))
+        color = _level_color(lvl)
         cv2.rectangle(out, (x1, y1), (x2, y2), color, 2)
-        label = f'{d["class_name"]} {d["score"]:.2f}'
+        label = f'{d["class_name"]} {d["score"]:.2f} · {lvl}'
         (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
         y_text = y1 - 4
         if y_text - th - 4 < 0: y_text = min(y1 + th + 6, H - 2)
@@ -491,9 +513,8 @@ def sdg_tile(col, path, label):
             st.image(path, width=180)
         else:
             st.warning(f"Missing {path}")
-        st.markdown("Our app promotes SGDs")
         st.markdown(f"<div class='sdg-caption'>{label}</div>", unsafe_allow_html=True)
 
-sdg_tile(col1, "sdg12.png")
-sdg_tile(col2, "sdg11.png")
-sdg_tile(col3, "sdg13.png")
+sdg_tile(col2, "sdg11.png", "11 Sustainable Cities and Communities")
+sdg_tile(col1, "sdg12.png", "12 Responsible Consumption and Production")
+sdg_tile(col3, "sdg13.png", "13 Climate Action")
