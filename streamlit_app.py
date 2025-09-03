@@ -71,9 +71,7 @@ def apply_theme():
       [role="separator"]{ display:none !important; width:0 !important; height:0 !important;
                           margin:0 !important; padding:0 !important; border:0 !important; background:transparent !important; }
 
-      /* Expander borders (Advanced settings) */
-      [data-testid="stExpander"] details{ border:none !important; box-shadow:none !important; background:#fff !important; }
-      [data-testid="stExpander"] summary{ border:none !important; }
+
 
       /* Column/horizontal block separators some themes add */
       [data-testid="stHorizontalBlock"]{ border:none !important; box-shadow:none !important; }
