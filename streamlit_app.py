@@ -320,40 +320,41 @@ def show_guidance_card(label: str, count: int = 0, GUIDE=None):
     st.markdown('</div>', unsafe_allow_html=True)
 
 # ======================= Live video processor (WebRTC) =======================
+# ======================= Live video processor (WebRTC) =======================
 class YOLOProcessor(VideoProcessorBase):
-    """
-    Separate YOLO instance per processor (thread-safe for live).
-    """
     def __init__(self):
-        # Build our own model instance for this thread
-        self.model = YOLO(_ensure_model_path())
-        if FORCE_CLASS_NAMES:
-            try:
-                self.model.names = {i: n for i, n in enumerate(TARGET_NAMES)}
-            except Exception:
-                pass
+        self.model = ensure_global_model()  # preload & reuse
 
-        # Live-friendly defaults
-        self.conf = 0.0
-        self.iou = 0.0
-        self.imgsz = 640           # bigger helps live detection
+        # --- CORRECTED DEFAULTS ---
+        # Set a reasonable base confidence and IoU threshold.
+        # iou=0.0 was likely causing NMS to discard all boxes.
+        self.conf = 0.20  # Base confidence threshold
+        self.iou = 0.45   # NMS IoU threshold
+        
+        self.imgsz = 640
+        
+        # Per-class thresholds now act as a secondary filter on top of the base confidence.
+        # The sliders in the UI will adjust these values.
         self.per_class_min = {
-            "Clear plastic bottle": 0.10,
-            "Drink can":            0.10,
-            "Styrofoam piece":      0.10,
+            "Clear plastic bottle": 0.20,
+            "Drink can":            0.20,
+            "Styrofoam piece":      0.20,
         }
-        self.min_area_pct = 0.02   # even smaller area gate for live
-        self.draw_all_debug = False  # draw all raw boxes with no filtering
-        self.color_order = "bgr"    # keep simple; RGB also works but BGR avoids extra conversion
+        self.min_area_pct = 0.05   # Start with a small area filter
+        self.dra_all_debug = False
+       
+        # Auto color-order detection (BGR vs RGB)
+        self.color_order = "auto"
+        self._color_locked = False
 
         self.last_bgr = None
         self.last_dets = []
         self.last_infer_ms = 0.0
 
-        # Warm-up
+        # Warm-up (prevents initial blank)
         try:
             dummy = np.zeros((self.imgsz, self.imgsz, 3), dtype=np.uint8)
-            _ = self.model.predict(dummy, conf=self.conf, iou=self.iou, imgsz=self.imgsz, verbose=False, device="cpu")
+            _ = self.model.predict(dummy, conf=self.conf, iou=self.iou, imgsz=self.imgsz, verbose=False)
         except Exception:
             pass
 
