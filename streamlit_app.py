@@ -2,6 +2,7 @@ import os
 import shutil
 import hashlib
 import time
+import threading
 import numpy as np
 from PIL import Image
 import streamlit as st
@@ -25,7 +26,6 @@ def apply_theme():
       html, body, [data-testid="stAppViewContainer"]{ background:var(--bg); color:var(--txt); }
       .main .block-container{ padding-top:1rem !important; max-width:1200px; }
 
-      /* Chips & links */
       .pill{ display:inline-block; background:var(--pill); padding:2px 10px 4px 10px;
              border-radius:999px; color:var(--pri2); border:1px solid var(--bd); }
       .eco-links{ display:flex; gap:10px; margin-top:10px; margin-bottom:22px; flex-wrap:wrap; }
@@ -35,7 +35,6 @@ def apply_theme():
       .citybadge{ display:inline-block; background:var(--pill); padding:4px 10px;
                   border-radius:999px; border:1px solid var(--bd); color:var(--pri2); }
 
-      /* Guidance cards */
       .eco-card{ background:#fff; border:none; border-radius:22px; padding:18px 16px;
                  margin:10px 0 18px 0; box-shadow:0 3px 16px rgba(0,0,0,.04); }
       .eco-head{ display:flex; align-items:center; gap:10px; margin-bottom:6px; }
@@ -44,7 +43,6 @@ def apply_theme():
       .eco-badge{ margin-left:auto; background:var(--pill); color:var(--pri2);
                   border:1px solid var(--bd); border-radius:999px; padding:4px 10px; font-size:.85rem; }
 
-      /* Sections in cards */
       .eco-section-title-primary{ font-weight:900; font-size:1.12rem; color:var(--pri2); margin:8px 0 6px 0; }
       .eco-section-title{ font-weight:800; margin:8px 0 4px 0; }
       .eco-list{ margin:0 0 4px 0; padding-left:18px; }
@@ -55,7 +53,6 @@ def apply_theme():
 
       .sdg-caption{ text-align:center; font-weight:800; margin-top:10px; }
 
-      /* Remove all default separators / lines / borders */
       [data-testid="stDivider"], hr, [role="separator"]{ display:none !important; }
       [data-testid="stExpander"] details, [data-testid="stExpander"] summary{
         border:none !important; box-shadow:none !important; background:transparent !important;
@@ -79,7 +76,6 @@ CACHED_PATH = os.path.join(CACHED_DIR, f"weights_{_hash_url(MODEL_URL)}.pt")
 
 IMGSZ_OPTIONS = [200, 320, 416, 512, 640, 800, 960, 1280]
 
-# Force UI names — class 2 is "Styrofoam piece"
 FORCE_CLASS_NAMES = True
 TARGET_NAMES = ["Clear plastic bottle", "Drink can", "Styrofoam piece"]
 
@@ -243,17 +239,8 @@ def load_model():
     path = _ensure_model_path()
     return _load_model_cached(path, _cache_key_for(path))
 
-# ===== Preload model once for every mode =====
-GLOBAL_MODEL = None
-def ensure_global_model():
-    """Return the single shared YOLO model instance."""
-    global GLOBAL_MODEL
-    if GLOBAL_MODEL is None:
-        GLOBAL_MODEL = load_model()  # uses @st.cache_resource internally
-    return GLOBAL_MODEL
-
-# Preload at app startup so it's ready for Upload/Camera/Live
-_ = ensure_global_model()
+# (Static modes use the cached model)
+GLOBAL_MODEL = load_model()
 
 # ======================= Utils =======================
 def _get_names_map(pred, model):
@@ -334,48 +321,49 @@ def show_guidance_card(label: str, count: int = 0, GUIDE=None):
 
 # ======================= Live video processor (WebRTC) =======================
 class YOLOProcessor(VideoProcessorBase):
+    """
+    Separate YOLO instance per processor (thread-safe for live).
+    """
     def __init__(self):
-        self.model = ensure_global_model()  # preload & reuse
+        # Build our own model instance for this thread
+        self.model = YOLO(_ensure_model_path())
+        if FORCE_CLASS_NAMES:
+            try:
+                self.model.names = {i: n for i, n in enumerate(TARGET_NAMES)}
+            except Exception:
+                pass
 
         # Live-friendly defaults
         self.conf = 0.0
         self.iou = 0.0
-        self.imgsz = 416           # try 640 on desktop if fast enough
+        self.imgsz = 640           # bigger helps live detection
         self.per_class_min = {
             "Clear plastic bottle": 0.10,
             "Drink can":            0.10,
             "Styrofoam piece":      0.10,
         }
-        self.min_area_pct = 0.05   # 0.05% of frame area
-        self.frame_skip = 0        # process every frame
-
-        # Auto color-order detection (BGR vs RGB)
-        self.color_order = "auto"  # "bgr", "rgb", or "auto"
-        self._color_locked = False
+        self.min_area_pct = 0.02   # even smaller area gate for live
+        self.draw_all_debug = False  # draw all raw boxes with no filtering
+        self.color_order = "bgr"    # keep simple; RGB also works but BGR avoids extra conversion
 
         self.last_bgr = None
         self.last_dets = []
         self.last_infer_ms = 0.0
 
-        # Warm-up (prevents initial blank)
+        # Warm-up
         try:
             dummy = np.zeros((self.imgsz, self.imgsz, 3), dtype=np.uint8)
-            _ = self.model.predict(dummy, conf=self.conf, iou=self.iou, imgsz=self.imgsz, verbose=False)
+            _ = self.model.predict(dummy, conf=self.conf, iou=self.iou, imgsz=self.imgsz, verbose=False, device="cpu")
         except Exception:
             pass
 
-    def _names_map(self):
-        return {i: n for i, n in enumerate(TARGET_NAMES)} if FORCE_CLASS_NAMES else getattr(
-            self.model, "names", {0:"Clear plastic bottle",1:"Drink can",2:"Styrofoam piece"}
-        )
+        # Optional lock if you ever share a model; here each processor has its own, so not needed.
+        self._lock = threading.Lock()
 
-    def _infer_once(self, img_bgr):
-        """Run predict on either BGR or RGB based on chosen color_order."""
-        if self.color_order == "rgb":
-            img = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
-        else:
-            img = img_bgr
-        return self.model.predict(img, conf=self.conf, iou=self.iou, imgsz=self.imgsz, verbose=False)
+    def _names_map(self):
+        if FORCE_CLASS_NAMES:
+            return {i: n for i, n in enumerate(TARGET_NAMES)}
+        return getattr(self.model, "names", {0:"Clear plastic bottle",1:"Drink can",2:"Styrofoam piece"})
 
     def _extract_dets(self, pred, H, W, names_map, min_area):
         dets = []
@@ -389,45 +377,27 @@ class YOLOProcessor(VideoProcessorBase):
                 area = w * h
                 name  = names_map.get(int(clsi[i]), str(int(clsi[i])))
                 score = float(scores[i])
-                if score < self.per_class_min.get(name, self.conf): continue
-                if area  < min_area: continue
+                if not self.draw_all_debug:
+                    if score < self.per_class_min.get(name, self.conf): continue
+                    if area  < min_area: continue
                 dets.append({"xyxy":[x1,y1,x2,y2], "class_name":name, "score":score})
         return dets
 
     def recv(self, frame: av.VideoFrame) -> av.VideoFrame:
         bgr = frame.to_ndarray(format="bgr24")
-        names_map = self._names_map()
         H, W = bgr.shape[:2]
+        names_map = self._names_map()
         min_area = (self.min_area_pct / 100.0) * (H * W)
 
         t0 = time.perf_counter()
-
-        # First frame: auto decide color order by comparing BGR vs RGB detections
-        if self.color_order == "auto" and not self._color_locked:
-            try:
-                pred_bgr = self.model.predict(bgr, conf=self.conf, iou=self.iou, imgsz=self.imgsz, verbose=False)
-                dets_bgr = self._extract_dets(pred_bgr[0], H, W, names_map, min_area)
-
-                rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
-                pred_rgb = self.model.predict(rgb, conf=self.conf, iou=self.iou, imgsz=self.imgsz, verbose=False)
-                dets_rgb = self._extract_dets(pred_rgb[0], H, W, names_map, min_area)
-
-                self.color_order = "rgb" if len(dets_rgb) > len(dets_bgr) else "bgr"
-                self._color_locked = True
-            except Exception:
-                # fallback to BGR
-                self.color_order = "bgr"
-                self._color_locked = True
-
-        # Normal inference with chosen color order
-        results = self._infer_once(bgr)
+        with self._lock:
+            results = self.model.predict(bgr, conf=self.conf, iou=self.iou, imgsz=self.imgsz, verbose=False, device="cpu")
         pred = results[0]
         dets = self._extract_dets(pred, H, W, names_map, min_area)
-
         self.last_infer_ms = (time.perf_counter() - t0) * 1000.0
 
         # Draw
-        color = (28,160,78)  # theme green
+        color = (28,160,78)
         for d in dets:
             x1, y1, x2, y2 = map(int, d["xyxy"])
             cv2.rectangle(bgr, (x1, y1), (x2, y2), color, 3)
@@ -439,7 +409,7 @@ class YOLOProcessor(VideoProcessorBase):
             cv2.putText(bgr, label, (xt + 4, yt - 4), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255,255,255), 2, cv2.LINE_AA)
 
         # Debug overlay
-        dbg = f"{len(dets)} dets | {self.last_infer_ms:.0f} ms | imgsz {self.imgsz} | {self.color_order.upper()}"
+        dbg = f"{len(dets)} dets | {self.last_infer_ms:.0f} ms | imgsz {self.imgsz}" + (" | DEBUG" if self.draw_all_debug else "")
         cv2.putText(bgr, dbg, (8, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0,0,0), 3, cv2.LINE_AA)
         cv2.putText(bgr, dbg, (8, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255,255,255), 1, cv2.LINE_AA)
 
@@ -456,7 +426,7 @@ with logo_col:
 # ======================= MAIN INTRO =======================
 st.markdown("### Let’s Start Sorting!")
 
-# City/Ward block (below heading, before step 1)
+# City/Ward block
 c1, c2 = st.columns([2, 6])
 with c1:
     city_label = st.selectbox("City / Ward", ["Shibuya (Tokyo)"], index=0)
@@ -489,18 +459,17 @@ if src == "Live (beta)":
         async_processing=True,
     )
 
-    # Optional live-tuning panel (helps diagnose)
+    # Live tuning panel (helps diagnose; no redeploy needed)
     if webrtc_ctx and webrtc_ctx.video_processor:
         with st.expander("Live settings (beta)"):
             vp = webrtc_ctx.video_processor
-            vp.imgsz = st.select_slider("Live imgsz", options=[320,416,512,640], value=int(vp.imgsz))
-            vp.min_area_pct = st.slider("Min area (%)", 0.0, 2.0, float(vp.min_area_pct), 0.05)
+            vp.imgsz = st.select_slider("Live imgsz", options=[320,416,512,640,800], value=int(vp.imgsz))
+            vp.min_area_pct = st.slider("Min area (%)", 0.0, 2.0, float(vp.min_area_pct), 0.01)
             vp.per_class_min["Clear plastic bottle"] = st.slider("Bottle min", 0.0, 1.0, float(vp.per_class_min["Clear plastic bottle"]), 0.01)
             vp.per_class_min["Drink can"]            = st.slider("Can min",    0.0, 1.0, float(vp.per_class_min["Drink can"]), 0.01)
             vp.per_class_min["Styrofoam piece"]      = st.slider("Foam min",   0.0, 1.0, float(vp.per_class_min["Styrofoam piece"]), 0.01)
-            co = st.radio("Color order", ["Auto", "BGR", "RGB"], index=0, horizontal=True)
-            vp.color_order = {"Auto":"auto","BGR":"bgr","RGB":"rgb"}[co]
-            vp._color_locked = (vp.color_order != "auto")
+            vp.draw_all_debug = st.toggle("Draw ALL raw boxes (debug)", value=False,
+                                          help="Ignore thresholds & area filter to verify detections pipeline.")
 
     colA, _ = st.columns([1,2])
     with colA:
@@ -521,7 +490,7 @@ if src == "Live (beta)":
                     else:
                         st.caption("No local guidance available for these detections.")
                 else:
-                    st.info("No objects detected yet. Hold the item steady and try again.")
+                    st.info("No objects detected yet. Hold the item closer, in good light, and try again.")
 else:
     # Static (Upload image / Camera)
     auto_run = st.toggle("Auto-run detection", value=True, help="Run detection automatically after you choose/take a photo.")
@@ -569,7 +538,7 @@ else:
 
     # ======================= Detection (static) =======================
     def run_detection(image_pil: Image.Image):
-        model = ensure_global_model()
+        model = GLOBAL_MODEL
         bgr = np.array(image_pil.convert("RGB"))[:, :, ::-1]
         results = model.predict(bgr, conf=conf, iou=iou, imgsz=imgsz, verbose=False, augment=tta)
         pred = results[0]
@@ -598,13 +567,10 @@ else:
             c = int(clsi[i])
             name = names_map.get(c, str(c))
             s = float(scores[i])
-
             if s < per_class_min.get(name, conf): continue
             if area < min_area: continue
-
             dets.append({"xyxy":[x1,y1,x2,y2], "class_id":c, "class_name":name, "score":s})
             counts[name] = counts.get(name, 0) + 1
-
         return dets, counts
 
     def draw_and_show(image_pil: Image.Image, dets):
@@ -625,11 +591,10 @@ else:
             cv2.putText(out, label, (x_text + 3, y_text - 2), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1, cv2.LINE_AA)
         st.image(Image.fromarray(out[:, :, ::-1]), caption="Detections", use_container_width=True)
 
+    # Auto-run
     if image is not None:
         st.image(image, caption="Input", use_container_width=True)
-        should_run = auto_run
-        if not auto_run:
-            should_run = st.button("Run detection")
+        should_run = auto_run or st.button("Run detection")
         if should_run:
             dets, counts = run_detection(image)
             if dets:
@@ -663,7 +628,7 @@ st.markdown(
 </div>
 """, unsafe_allow_html=True)
 
-# SDG tiles via st.image() (reliable for local files)
+# SDG tiles (local files) – robust via st.image
 col1, col2, col3 = st.columns(3)
 def sdg_tile(col, path, label):
     with col:
