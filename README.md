@@ -1,4 +1,4 @@
-# When AI Sees Litter · Shibuya
+# When AI Sees Litter
 
 A Streamlit app that uses a YOLO model to detect three waste types: **Clear plastic bottle**, **Drink can**, **Styrofoam piece**. The app supports **Upload image** and **Camera**. Currently, it shows city-specific disposal guidance for **Shibuya** and SDG tiles for context.
 
