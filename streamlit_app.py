@@ -17,19 +17,26 @@ def apply_theme():
         --pri:#79C16D; --pri2:#4FA25A; --hi:#CFEAC0; --bg:#FAFEF6; --card:#FFFFFF;
         --txt:#0F2A1C; --mut:#6F8B7A; --pill:#EEF7E9; --bd:#E5EFE3;
       }
-      html, body, [data-testid="stAppViewContainer"]{ background:var(--bg); color:var(--txt); }
+
+      html, body, [data-testid="stAppViewContainer"]{
+        background:var(--bg); color:var(--txt);
+      }
       .main .block-container{ padding-top:1rem !important; max-width:1200px; }
+
+      /* HERO */
       .hero{
         background: radial-gradient(700px 280px at 10% -20%, rgba(121,193,109,.18), transparent),
                     linear-gradient(135deg, #FFFFFF 0%, #F7FBF2 100%);
-        border-radius:24px; padding:22px 20px; margin:6px 0 12px 0;
+        border:none; border-radius:24px; padding:22px 20px; margin:6px 0 12px 0;
       }
       .hero h1{ margin:0 0 6px 0; font-weight:900; letter-spacing:.2px; font-size:1.8rem; }
       .hero p{ margin:0 0 10px 0; color:var(--mut); }
       .pill{ display:inline-block; background:var(--pill); padding:2px 10px 4px 10px;
              border-radius:999px; color:var(--pri2); border:1px solid var(--bd); }
+
+      /* SECTIONS & CARDS (no borders) */
       .section{ margin:10px 0 18px 0; padding:16px; background:var(--card);
-                border:none; border-radius:18px; }  /* no white border */
+                border:none; border-radius:18px; box-shadow:none; }
       .eco-card{ background:#fff; border:none; border-radius:22px; padding:18px 16px;
                  margin:10px 0 18px 0; box-shadow:0 3px 16px rgba(0,0,0,.04); }
       .eco-head{ display:flex; align-items:center; gap:10px; margin-bottom:6px; }
@@ -48,14 +55,33 @@ def apply_theme():
       .eco-link{ border-radius:999px; padding:8px 12px; border:1px solid var(--bd);
                  background:#fff; text-decoration:none !important; color:var(--pri2) !important; font-weight:700; }
       .eco-link:hover{ background:var(--pill); }
-      .howto li{ margin:2px 0; }
+      .citybadge{ display:inline-block; background:var(--pill); padding:4px 10px;
+                  border-radius:999px; border:1px solid var(--bd); color:var(--pri2); }
+
+      /* SDGs row (keeps your 180px size) */
       .sdg-row{ display:flex; gap:16px; flex-wrap:wrap; align-items:center; }
       .sdg-card{ display:flex; gap:10px; align-items:center; border:none;
                  background:#fff; padding:8px 10px; border-radius:14px; box-shadow:0 2px 10px rgba(0,0,0,.04); }
-      .sdg-card img{ width:180px; height:auto; }  /* fixed 180px width */
+      .sdg-card img{ width:180px; height:auto; }
       .sdg-card .txt{ font-weight:700; }
-      .citybadge{ display:inline-block; background:var(--pill); padding:4px 10px;
-                  border-radius:999px; border:1px solid var(--bd); color:var(--pri2); }
+
+      /* 🔥 KILL ALL DIVIDERS / SEPARATOR LINES */
+      [data-testid="stDivider"]{ display:none !important; }
+      hr{ display:none !important; border:0 !important; height:0 !important; }
+      [role="separator"]{ display:none !important; width:0 !important; height:0 !important;
+                          margin:0 !important; padding:0 !important; border:0 !important; background:transparent !important; }
+
+      /* Expander borders (Advanced settings) */
+      [data-testid="stExpander"] details{ border:none !important; box-shadow:none !important; background:#fff !important; }
+      [data-testid="stExpander"] summary{ border:none !important; }
+
+      /* Column/horizontal block separators some themes add */
+      [data-testid="stHorizontalBlock"]{ border:none !important; box-shadow:none !important; }
+      [data-testid="stVerticalBlock"]{ border:none !important; box-shadow:none !important; background:transparent !important; }
+
+      /* Just in case the app header adds a bottom border */
+      [data-testid="stHeader"]{ background:transparent !important; }
+      [data-testid="stHeader"] div{ border:none !important; box-shadow:none !important; }
     </style>
     """, unsafe_allow_html=True)
 apply_theme()
