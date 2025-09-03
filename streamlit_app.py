@@ -9,7 +9,7 @@ from ultralytics import YOLO
 
 st.set_page_config(page_title="When AI Sees Litter — Shibuya", page_icon="♻️", layout="wide")
 
-# ======================= THEME (Light, clean) =======================
+# ======================= THEME (light, no section borders) =======================
 def apply_theme():
     st.markdown("""
     <style>
@@ -22,15 +22,15 @@ def apply_theme():
       .hero{
         background: radial-gradient(700px 280px at 10% -20%, rgba(121,193,109,.18), transparent),
                     linear-gradient(135deg, #FFFFFF 0%, #F7FBF2 100%);
-        border:1px solid var(--bd); border-radius:24px; padding:22px 20px; margin:6px 0 12px 0;
+        border-radius:24px; padding:22px 20px; margin:6px 0 12px 0;
       }
       .hero h1{ margin:0 0 6px 0; font-weight:900; letter-spacing:.2px; font-size:1.8rem; }
       .hero p{ margin:0 0 10px 0; color:var(--mut); }
       .pill{ display:inline-block; background:var(--pill); padding:2px 10px 4px 10px;
              border-radius:999px; color:var(--pri2); border:1px solid var(--bd); }
       .section{ margin:10px 0 18px 0; padding:16px; background:var(--card);
-                border:1px solid var(--bd); border-radius:18px; }
-      .eco-card{ background:#fff; border:1px solid var(--bd); border-radius:22px; padding:18px 16px;
+                border:none; border-radius:18px; }  /* no white border */
+      .eco-card{ background:#fff; border:none; border-radius:22px; padding:18px 16px;
                  margin:10px 0 18px 0; box-shadow:0 3px 16px rgba(0,0,0,.04); }
       .eco-head{ display:flex; align-items:center; gap:10px; margin-bottom:6px; }
       .eco-emoji{ font-size:1.5rem; }
@@ -49,10 +49,10 @@ def apply_theme():
                  background:#fff; text-decoration:none !important; color:var(--pri2) !important; font-weight:700; }
       .eco-link:hover{ background:var(--pill); }
       .howto li{ margin:2px 0; }
-      .sdg-row{ display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
-      .sdg-card{ display:flex; gap:10px; align-items:center; border:1px solid var(--bd);
-                 background:#fff; padding:10px 12px; border-radius:14px; }
-      .sdg-card img{ width:64px; height:auto; }
+      .sdg-row{ display:flex; gap:16px; flex-wrap:wrap; align-items:center; }
+      .sdg-card{ display:flex; gap:10px; align-items:center; border:none;
+                 background:#fff; padding:8px 10px; border-radius:14px; box-shadow:0 2px 10px rgba(0,0,0,.04); }
+      .sdg-card img{ width:180px; height:auto; }  /* fixed 180px width */
       .sdg-card .txt{ font-weight:700; }
       .citybadge{ display:inline-block; background:var(--pill); padding:4px 10px;
                   border-radius:999px; border:1px solid var(--bd); color:var(--pri2); }
@@ -61,22 +61,19 @@ def apply_theme():
 apply_theme()
 
 # ======================= Config & Model =======================
-# Update your model URL here
-MODEL_URL   = os.getenv("MODEL_URL", "https://raw.githubusercontent.com/Bellzum/streamlit-main/main/new_taco1.pt")
-
+MODEL_URL   = os.getenv("MODEL_URL", "https://raw.githubusercontent.com/Bellzum/streamlit-main/main/yolo_tue_3classes.pt")
 LOCAL_MODEL = os.getenv("LOCAL_MODEL", "best.pt")
+
 CACHED_DIR  = "/tmp/models"
-# cache file unique to URL so changing MODEL_URL actually refreshes
-def _hash_url(u: str) -> str:
-    return hashlib.sha1(u.encode("utf-8")).hexdigest()[:12]
+def _hash_url(u: str) -> str: return hashlib.sha1(u.encode("utf-8")).hexdigest()[:12]
 CACHED_PATH = os.path.join(CACHED_DIR, f"weights_{_hash_url(MODEL_URL)}.pt")
 
 DEFAULT_IMGSZ = int(os.getenv("IMGSZ", "640"))
 IMGSZ_OPTIONS = [320, 416, 512, 640, 800, 960, 1280]
 
-# Force names so class id 2 shows as Plastic bottle cap (UI + thresholds + guidance)
+# We now align the 3rd class to STYROFOAM everywhere (UI + thresholds + guidance)
 FORCE_CLASS_NAMES = True
-TARGET_NAMES = ["Clear plastic bottle", "Drink can", "Plastic bottle cap"]
+TARGET_NAMES = ["Clear plastic bottle", "Drink can", "Styrofoam piece"]
 
 # ======================= Official references & images =======================
 SHIBUYA_GUIDE_URL    = "https://www.city.shibuya.tokyo.jp/contents/living-in-shibuya/en/daily/garbage.html"
@@ -175,20 +172,24 @@ GUIDE_SHIBUYA = {
         "link": SHIBUYA_GUIDE_URL,
         "poster": SHIBUYA_POSTER_EN,
     },
-    "Plastic bottle cap": {
-        "title": "Shibuya disposal: Plastic bottle cap (plastic item)",
-        "emoji": "🔘",
-        "materials": "PP or PE (polypropylene or polyethylene) closures.",
+    "Styrofoam piece": {
+        "title": "Shibuya disposal: Styrofoam piece (plastic item)",
+        "emoji": "🧊",
+        "materials": "Expanded polystyrene (EPS) foam.",
         "why_separate": [
-            "Caps are not PET. Separating avoids contaminating bottle-to-bottle recycling.",
-            "In Shibuya, caps & labels go with Plastic items (プラ), not with PET bottles."
+            "Styrofoam is a plastic (polystyrene). Clean pieces can go to Plastic items when marked as packaging.",
+            "Keeping plastics clean improves material recovery quality."
         ],
-        "steps": ["Remove from the bottle.", "Rinse if sticky.", "Put caps with Plastic items in a clear/semi-clear bag."],
-        "recycles_to": ["New caps (pilots)", "Plastic containers/packaging", "Pallets & molded goods"],
+        "steps": [
+            "Remove food residue; wipe or quick rinse if necessary.",
+            "Break large pieces down to fit bags.",
+            "Put Styrofoam with Plastic items in a clear/semi-clear bag (follow building day)."
+        ],
+        "recycles_to": ["Foam trays & molded parts", "Pellets for plastic goods", "(Sometimes) thermal recovery"],
         "facts": [
             {
-                "text": "Separating PP/PE caps and labels keeps the PET stream clean for high-value recycling.",
-                "url": "https://japan-forward.com/japans-plastic-recycling-the-unseen-reality/"
+                "text": "Plastic sorting rules vary by municipality; Shibuya’s plastics notice covers plastic items guidance.",
+                "url": SHIBUYA_PLASTICS_NOTICE
             }
         ],
         "images": [],
@@ -242,12 +243,9 @@ def _cache_key_for(path: str) -> str:
 @st.cache_resource(show_spinner=True)
 def _load_model_cached(path: str, key: str):
     m = YOLO(path)
-    # Apply forced names in-session so pred.names aligns
     if FORCE_CLASS_NAMES:
-        try:
-            m.names = {i: n for i, n in enumerate(TARGET_NAMES)}
-        except Exception:
-            pass
+        try: m.names = {i: n for i, n in enumerate(TARGET_NAMES)}
+        except Exception: pass
     return m
 
 def load_model():
@@ -281,11 +279,10 @@ def draw_boxes(bgr, dets):
 def _get_names_map(pred, model):
     if FORCE_CLASS_NAMES:
         return {i: n for i, n in enumerate(TARGET_NAMES)}
-    # fallback to checkpoint names
     if hasattr(pred, "names") and isinstance(pred.names, dict):  return pred.names
     if hasattr(model, "names") and isinstance(model.names, dict): return model.names
     if hasattr(model, "names") and isinstance(model.names, list): return {i:n for i,n in enumerate(model.names)}
-    return {0:"Clear plastic bottle", 1:"Drink can", 2:"Plastic bottle cap"}
+    return {0:"Clear plastic bottle", 1:"Drink can", 2:"Styrofoam piece"}
 
 def _closest_size(target: int, options: list[int]) -> int:
     return min(options, key=lambda x: abs(x - target))
@@ -358,13 +355,11 @@ def show_guidance_card(label: str, count: int = 0, GUIDE=None):
     st.markdown('</div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
-# ======================= HEADER =======================
-logo_col, title_col = st.columns([3, 5], vertical_alignment="center")
+# ======================= HEADER (logo only) =======================
+logo_col, _ = st.columns([3, 5], vertical_alignment="center")
 with logo_col:
     if os.path.exists("logo.png"):
         st.image("logo.png", use_container_width=True)
-with title_col:
-    st.markdown("<div style='font-weight:800; font-size:1.6rem; line-height:1.2'>When AI Sees Litter — Shibuya</div>", unsafe_allow_html=True)
 
 # ======================= City selector (mock) =======================
 st.markdown('<div class="section">', unsafe_allow_html=True)
@@ -382,7 +377,7 @@ GUIDE = GUIDE_BY_CITY.get(city_id, {})
 st.markdown(f"""
 <div class="hero">
   <h1>Scan litter. Get local sorting guidance.</h1>
-  <p><span class="pill">Quick Detect</span> works on PET bottles, drink cans, and plastic bottle caps — <b>{city_label}</b>.</p>
+  <p><span class="pill">Quick Detect</span> works on PET bottles, drink cans, and styrofoam — <b>{city_label}</b>.</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -397,35 +392,52 @@ st.markdown("""
 </ol>
 """, unsafe_allow_html=True)
 
-# Presets / defaults
+# Presets
+# Minimum (kept for completeness)
 _MIN_CONF=0.05; _MIN_IOU=0.10; _MIN_IMGSZ=_closest_size(DEFAULT_IMGSZ, IMGSZ_OPTIONS)
-_MIN_BOTTLE=0.00; _MIN_CAN=0.00; _MIN_CAP=0.00; _MIN_AREA_PCT=0.0; _MIN_TTA=False
+_MIN_BOTTLE=0.00; _MIN_CAN=0.00; _MIN_FOAM=0.00; _MIN_AREA_PCT=0.0; _MIN_TTA=False
+
+# Recommended (YOUR requested defaults)
+_REC_CONF=0.00; _REC_IOU=0.00; _REC_IMGSZ=_closest_size(DEFAULT_IMGSZ, IMGSZ_OPTIONS)
+_REC_BOTTLE=0.20; _REC_CAN=0.20; _REC_FOAM=0.20; _REC_AREA_PCT=0.20; _REC_TTA=False
+
+# Strict (example)
+_STR_CONF=0.35; _STR_IOU=0.50; _STR_IMGSZ=_closest_size(DEFAULT_IMGSZ, IMGSZ_OPTIONS)
+_STR_BOTTLE=0.70; _STR_CAN=0.70; _STR_FOAM=0.75; _STR_AREA_PCT=0.5; _STR_TTA=False
+
+# Default to RECOMMENDED even when the expander is closed
+conf=_REC_CONF; iou=_REC_IOU; imgsz=_REC_IMGSZ
+bottle_min=_REC_BOTTLE; can_min=_REC_CAN; foam_min=_REC_FOAM
+min_area_pct=_REC_AREA_PCT; tta=_REC_TTA
 
 with st.expander("Advanced settings (optional)"):
-    preset = st.radio("Preset", ["Minimum filters", "Recommended", "Strict"], index=0, horizontal=True)
-    conf=_MIN_CONF; iou=_MIN_IOU; imgsz=_MIN_IMGSZ
-    bottle_min=_MIN_BOTTLE; can_min=_MIN_CAN; cap_min=_MIN_CAP
-    min_area_pct=_MIN_AREA_PCT; tta=_MIN_TTA
-    if preset == "Recommended":
-        conf=0.25; iou=0.45; bottle_min=0.60; can_min=0.55; cap_min=0.65; min_area_pct=0.3; tta=False
+    preset = st.radio("Preset", ["Minimum filters", "Recommended", "Strict"], index=1, horizontal=True)
+    if preset == "Minimum filters":
+        conf=_MIN_CONF; iou=_MIN_IOU; imgsz=_MIN_IMGSZ
+        bottle_min=_MIN_BOTTLE; can_min=_MIN_CAN; foam_min=_MIN_FOAM
+        min_area_pct=_MIN_AREA_PCT; tta=_MIN_TTA
+    elif preset == "Recommended":
+        conf=_REC_CONF; iou=_REC_IOU; imgsz=_REC_IMGSZ
+        bottle_min=_REC_BOTTLE; can_min=_REC_CAN; foam_min=_REC_FOAM
+        min_area_pct=_REC_AREA_PCT; tta=_REC_TTA
     elif preset == "Strict":
-        conf=0.35; iou=0.50; bottle_min=0.70; can_min=0.70; cap_min=0.75; min_area_pct=0.5; tta=False
-    conf = st.slider("Base confidence", 0.05, 0.95, conf, 0.01)
-    iou  = st.slider("IoU", 0.10, 0.90, iou, 0.01)
+        conf=_STR_CONF; iou=_STR_IOU; imgsz=_STR_IMGSZ
+        bottle_min=_STR_BOTTLE; can_min=_STR_CAN; foam_min=_STR_FOAM
+        min_area_pct=_STR_AREA_PCT; tta=_STR_TTA
+
+    # Allow 0.0 for conf/IoU per your request
+    conf = st.slider("Base confidence", 0.0, 0.95, float(conf), 0.01)
+    iou  = st.slider("IoU",            0.0, 0.90, float(iou),  0.01)
     imgsz = st.select_slider("Inference image size", options=IMGSZ_OPTIONS, value=_closest_size(int(imgsz), IMGSZ_OPTIONS))
     c1, c2, c3, c4 = st.columns(4)
-    bottle_min = c1.slider("Min conf: Bottle", 0.0, 1.0, bottle_min, 0.01)
-    can_min    = c2.slider("Min conf: Can",    0.0, 1.0, can_min,    0.01)
-    cap_min    = c3.slider("Min conf: Cap",    0.0, 1.0, cap_min,    0.01)
-    min_area_pct = c4.slider("Min box area (%)", 0.0, 5.0, min_area_pct, 0.1,
+    bottle_min   = c1.slider("Min conf: Bottle",    0.0, 1.0, float(bottle_min),   0.01)
+    can_min      = c2.slider("Min conf: Can",       0.0, 1.0, float(can_min),      0.01)
+    foam_min     = c3.slider("Min conf: Styrofoam", 0.0, 1.0, float(foam_min),     0.01)
+    min_area_pct = c4.slider("Min box area (%)",    0.0, 5.0,  float(min_area_pct), 0.1,
                              help="Ignore tiny boxes by percent of image area.")
-    tta = st.toggle("Test time augmentation", value=tta, help="Slower, sometimes reduces false positives.")
+    tta = st.toggle("Test time augmentation", value=tta, help="Slower; sometimes reduces false positives.")
 
-if "conf" not in locals():
-    conf=_MIN_CONF; iou=_MIN_IOU; imgsz=_MIN_IMGSZ
-    bottle_min=_MIN_BOTTLE; can_min=_MIN_CAN; cap_min=_MIN_CAP
-    min_area_pct=_MIN_AREA_PCT; tta=_MIN_TTA
-
+# Input controls (default = Upload image)
 src = st.radio("Input source", ["Upload image", "Camera"], index=0, horizontal=True)
 image = None
 if src == "Upload image":
@@ -435,27 +447,20 @@ else:
     shot = st.camera_input("Open your camera", key="cam1")
     if shot: image = Image.open(shot).convert("RGB")
 
+# Optional load model button
 if st.button("Load model"):
     m = load_model()
-    # Show what labels we're using
+    nm = getattr(m, "names", None)
+    ckpt_names = list(nm.values()) if isinstance(nm, dict) else (nm if isinstance(nm, list) else None)
     if FORCE_CLASS_NAMES:
-        ckpt_names = None
-        nm = getattr(m, "names", None)
-        if isinstance(nm, dict): ckpt_names = list(nm.values())
-        elif isinstance(nm, list): ckpt_names = nm
         st.info(f"Labels (forced): {TARGET_NAMES}")
         if ckpt_names and ckpt_names != TARGET_NAMES:
             st.warning(f"Checkpoint labels were {ckpt_names} — overriding to {TARGET_NAMES} for UI/guidance.")
     else:
-        names_from_model = getattr(m, "names", None)
-        if isinstance(names_from_model, dict):
-            st.info(f"Checkpoint labels: {list(names_from_model.values())}")
-        elif isinstance(names_from_model, list):
-            st.info(f"Checkpoint labels: {names_from_model}")
-        else:
-            st.info("Using fallback label names.")
+        st.info(f"Checkpoint labels: {ckpt_names or 'unknown'}")
     st.success("Model ready.")
 
+# Run detection
 if image is not None:
     st.image(image, caption="Input", use_container_width=True)
     if st.button("Run detection"):
@@ -471,9 +476,13 @@ if image is not None:
             clsi   = pred.boxes.cls.cpu().numpy().astype(int)
             names_map = _get_names_map(pred, model)
 
-            per_class_min = {"Clear plastic bottle": bottle_min,
-                             "Drink can": can_min,
-                             "Plastic bottle cap": cap_min}
+            # thresholds by name (styrofoam instead of cap)
+            per_class_min = {
+                "Clear plastic bottle": bottle_min,
+                "Drink can":           can_min,
+                "Styrofoam piece":     foam_min,
+            }
+
             H, W = bgr.shape[:2]
             min_area = (min_area_pct / 100.0) * (H * W)
 
@@ -499,12 +508,14 @@ if image is not None:
                 st.subheader("Detections")
                 st.image(vis_img, use_container_width=True)
 
+                # Debug (collapsed)
                 with st.expander("Raw detections (debug)", expanded=False):
                     st.dataframe(pd.DataFrame(dets))
                 if counts:
                     with st.expander("Counts (debug)", expanded=False):
                         st.bar_chart(pd.Series(counts).sort_values(ascending=False))
 
+                # Guidance cards (city-aware)
                 detected_labels = sorted({d["class_name"] for d in dets})
                 guide_labels = [lbl for lbl in detected_labels if lbl in GUIDE]
                 if guide_labels:
@@ -515,7 +526,7 @@ if image is not None:
                     st.caption("No local guidance to show for these detections.")
 st.markdown('</div>', unsafe_allow_html=True)
 
-# ======================= Impact & SDGs =======================
+# ======================= Impact & SDGs (local images @ 180px) =======================
 st.markdown('<div class="section">', unsafe_allow_html=True)
 st.markdown("#### Impact & SDGs")
 st.markdown("""
@@ -534,18 +545,20 @@ st.markdown(
 </div>
 """, unsafe_allow_html=True)
 
-st.markdown("**Our SDGs focus:**")
-# Use local images: sdg11.png, sdg12.png, sdg13.png
-sdg_cols = st.columns(3)
+# Local SDGs (180px)
 sdgs = [
     ("sdg12.png", "12 Responsible Consumption & Production"),
     ("sdg11.png", "11 Sustainable Cities & Communities"),
     ("sdg13.png", "13 Climate Action"),
 ]
-for col, (img, caption) in zip(sdg_cols, sdgs):
-    with col:
-        if os.path.exists(img):
-            st.image(img, use_container_width=True, caption=caption)
-        else:
-            st.markdown(f"*Missing {img}* — {caption}")
+st.markdown('<div class="sdg-row">', unsafe_allow_html=True)
+for img, caption in sdgs:
+    st.markdown('<div class="sdg-card">', unsafe_allow_html=True)
+    if os.path.exists(img):
+        st.image(img, width=180)
+    else:
+        st.markdown(f"*Missing {img}*")
+    st.markdown(f"<div class='txt'>{caption}</div>", unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+st.markdown('</div>', unsafe_allow_html=True)
 st.markdown('</div>', unsafe_allow_html=True)
