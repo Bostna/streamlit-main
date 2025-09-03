@@ -1,6 +1,7 @@
 import os
 import shutil
 import hashlib
+import time
 import numpy as np
 from PIL import Image
 import streamlit as st
@@ -43,7 +44,7 @@ def apply_theme():
       .eco-badge{ margin-left:auto; background:var(--pill); color:var(--pri2);
                   border:1px solid var(--bd); border-radius:999px; padding:4px 10px; font-size:.85rem; }
 
-      /* Make primary "How to put out" stand out */
+      /* Sections in cards */
       .eco-section-title-primary{ font-weight:900; font-size:1.12rem; color:var(--pri2); margin:8px 0 6px 0; }
       .eco-section-title{ font-weight:800; margin:8px 0 4px 0; }
       .eco-list{ margin:0 0 4px 0; padding-left:18px; }
@@ -52,11 +53,7 @@ def apply_theme():
       .chip{ background:var(--pill); color:var(--pri2); border:1px solid var(--bd);
              border-radius:999px; padding:4px 10px; font-size:.88rem; }
 
-      /* SDGs (clean spacing + aligned captions) */
-      .sdg-wrap{ margin-top:8px; }
-      .sdg-row{ display:grid; grid-template-columns: repeat(3, 1fr); gap:28px; align-items:start; }
-      .sdg-tile{ display:flex; flex-direction:column; align-items:center; }
-      .sdg-tile img{ width:180px; height:180px; object-fit:contain; border-radius:14px; display:block; }
+      /* SDGs (use st.image(), just spacing helpers) */
       .sdg-caption{ text-align:center; font-weight:800; margin-top:10px; }
 
       /* Remove all separators / default hr lines / expander borders */
@@ -131,10 +128,8 @@ GUIDE_SHIBUYA = {
         ],
         "recycles_to": ["New PET bottles", "Fibers for clothing and bags", "Sheets/films"],
         "facts": [
-            {
-                "text": "Japan’s reported plastic 'recycling' rate includes thermal recovery; clean PET enables high-value bottle-to-bottle.",
-                "url": "https://japan-forward.com/japans-plastic-recycling-the-unseen-reality/"
-            }
+            {"text": "Japan’s reported plastic 'recycling' rate includes thermal recovery; clean PET enables high-value bottle-to-bottle.",
+             "url": "https://japan-forward.com/japans-plastic-recycling-the-unseen-reality/"},
         ],
         "images": FUKUOKA_PET_STEPS,
         "icons": [ICON_PET],
@@ -160,14 +155,10 @@ GUIDE_SHIBUYA = {
             "Remelt scrap ingots"
         ],
         "facts": [
-            {
-                "text": "Coca-Cola Bottlers Japan promotes CAN-to-CAN, including products using recycled aluminum bodies.",
-                "url": "https://en.ccbji.co.jp/news/detail.php?id=1347"
-            },
-            {
-                "text": "Hanwa: used aluminum cans are cleaned, melted and supplied as remelt scrap ingots — then used again as cans.",
-                "url": HANWA_CAN2CAN
-            }
+            {"text": "Coca-Cola Bottlers Japan promotes CAN-to-CAN, including products using recycled aluminum bodies.",
+             "url": "https://en.ccbji.co.jp/news/detail.php?id=1347"},
+            {"text": "Hanwa: used aluminum cans are cleaned, melted and supplied as remelt scrap ingots — then used again as cans.",
+             "url": HANWA_CAN2CAN},
         ],
         "images": [HANWA_CAN2CAN, CCBJI_CAN2CAN],
         "icons": [ICON_AL, ICON_STEEL],
@@ -189,10 +180,8 @@ GUIDE_SHIBUYA = {
         ],
         "recycles_to": ["Foam trays & molded parts", "Pellets for plastic goods", "(Sometimes) thermal recovery"],
         "facts": [
-            {
-                "text": "Plastic sorting rules vary by municipality; see Shibuya’s plastics notice for details.",
-                "url": SHIBUYA_PLASTICS_NOTICE
-            }
+            {"text": "Plastic sorting rules vary by municipality; see Shibuya’s plastics notice for details.",
+             "url": SHIBUYA_PLASTICS_NOTICE},
         ],
         "images": ["https://www.fpco.jp/dcms_media/image/appeal_img01_b.jpg"],
         "icons": [ICON_PLA],
@@ -351,29 +340,39 @@ def show_guidance_card(label: str, count: int = 0, GUIDE=None):
 class YOLOProcessor(VideoProcessorBase):
     def __init__(self):
         self.model = ensure_global_model()  # preload & reuse
+
+        # Live-friendly defaults
         self.conf = 0.0
         self.iou = 0.0
-        self.imgsz = 200
+        self.imgsz = 416           # larger than 200; try 640 if CPU allows
         self.per_class_min = {
-            "Clear plastic bottle": 0.20,
-            "Drink can": 0.20,
-            "Styrofoam piece": 0.20,
+            "Clear plastic bottle": 0.10,
+            "Drink can":            0.10,
+            "Styrofoam piece":      0.10,
         }
-        self.min_area_pct = 0.20  # percent of image area
-        self.frame_skip = 0       # process every frame for immediate detections
+        self.min_area_pct = 0.05   # 0.05% of frame area
+        self.frame_skip = 0        # process every frame
         self._cnt = 0
         self.last_bgr = None
         self.last_dets = []
+        self.last_infer_ms = 0.0
+
+        # Warm-up (prevents initial blank)
+        try:
+            dummy = np.zeros((self.imgsz, self.imgsz, 3), dtype=np.uint8)
+            _ = self.model.predict(dummy, conf=self.conf, iou=self.iou, imgsz=self.imgsz, verbose=False)
+        except Exception:
+            pass
 
     def _names_map(self):
-        return {i: n for i, n in enumerate(TARGET_NAMES)} if FORCE_CLASS_NAMES else getattr(self.model, "names", {0:"Clear plastic bottle",1:"Drink can",2:"Styrofoam piece"})
+        return {i: n for i, n in enumerate(TARGET_NAMES)} if FORCE_CLASS_NAMES else getattr(
+            self.model, "names", {0:"Clear plastic bottle",1:"Drink can",2:"Styrofoam piece"}
+        )
 
     def recv(self, frame: av.VideoFrame) -> av.VideoFrame:
         bgr = frame.to_ndarray(format="bgr24")
-        self._cnt = (self._cnt + 1) % (self.frame_skip + 1)
-        if self._cnt != self.frame_skip:
-            return av.VideoFrame.from_ndarray(bgr, format="bgr24")
 
+        t0 = time.perf_counter()
         names_map = self._names_map()
         H, W = bgr.shape[:2]
         min_area = (self.min_area_pct / 100.0) * (H * W)
@@ -382,29 +381,37 @@ class YOLOProcessor(VideoProcessorBase):
         pred = results[0]
         dets = []
         if pred.boxes is not None and len(pred.boxes) > 0:
-            boxes = pred.boxes.xyxy.cpu().numpy()
+            boxes  = pred.boxes.xyxy.cpu().numpy()
             scores = pred.boxes.conf.cpu().numpy()
             clsi   = pred.boxes.cls.cpu().numpy().astype(int)
             for i in range(len(boxes)):
                 x1, y1, x2, y2 = boxes[i].tolist()
                 w = max(0.0, x2 - x1); h = max(0.0, y2 - y1)
                 area = w * h
-                name = names_map.get(int(clsi[i]), str(int(clsi[i])))
+                name  = names_map.get(int(clsi[i]), str(int(clsi[i])))
                 score = float(scores[i])
                 if score < self.per_class_min.get(name, self.conf): continue
-                if area < min_area: continue
+                if area  < min_area: continue
                 dets.append({"xyxy":[x1,y1,x2,y2], "class_name":name, "score":score})
 
+        self.last_infer_ms = (time.perf_counter() - t0) * 1000.0
+
+        # Draw
         color = (28,160,78)  # theme green
         for d in dets:
             x1, y1, x2, y2 = map(int, d["xyxy"])
-            cv2.rectangle(bgr, (x1, y1), (x2, y2), color, 2)
+            cv2.rectangle(bgr, (x1, y1), (x2, y2), color, 3)   # thicker
             label = f'{d["class_name"]} {d["score"]:.2f}'
-            (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
+            (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)
             xt = max(0, min(x1, W - tw - 6))
-            yt = y1 - 4 if y1 - th - 6 >= 0 else min(y1 + th + 6, H - 2)
-            cv2.rectangle(bgr, (xt, max(0, yt - th - 4)), (min(xt + tw + 6, W - 1), min(yt + 2, H - 1)), color, -1)
-            cv2.putText(bgr, label, (xt + 3, yt - 2), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1, cv2.LINE_AA)
+            yt = y1 - 6 if y1 - th - 8 >= 0 else min(y1 + th + 10, H - 2)
+            cv2.rectangle(bgr, (xt, max(0, yt - th - 6)), (min(xt + tw + 8, W - 1), min(yt + 3, H - 1)), color, -1)
+            cv2.putText(bgr, label, (xt + 4, yt - 4), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255,255,255), 2, cv2.LINE_AA)
+
+        # Debug overlay
+        dbg = f"{len(dets)} dets | {self.last_infer_ms:.0f} ms | imgsz {self.imgsz}"
+        cv2.putText(bgr, dbg, (8, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0,0,0), 3, cv2.LINE_AA)
+        cv2.putText(bgr, dbg, (8, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255,255,255), 1, cv2.LINE_AA)
 
         self.last_bgr = bgr
         self.last_dets = dets
@@ -447,8 +454,9 @@ if src == "Live (beta)":
         key="webrtc-litter",
         mode=WebRtcMode.SENDRECV,
         rtc_configuration=RTC_CONFIG,
-        media_stream_constraints={"video": True, "audio": False},
+        media_stream_constraints={"video": {"width": {"ideal": 1280}, "height": {"ideal": 720}}, "audio": False},
         video_processor_factory=YOLOProcessor,
+        async_processing=True,
     )
     colA, _ = st.columns([1,2])
     with colA:
@@ -594,7 +602,7 @@ else:
             else:
                 st.info("All detections were filtered by thresholds. Try lowering per-class thresholds or min box area.")
 
-# ======================= Impact & SDGs (clean spacing + aligned captions) =======================
+# ======================= Impact & SDGs =======================
 st.markdown("#### Impact & SDGs")
 st.markdown("""
 - **Carbon credits (what they are):** A carbon credit represents **1 tonne of CO₂-equivalent** reduced or removed. Credits exist only when a **registered project** follows an **approved methodology** and passes **MRV**; they are then **issued on a registry** (e.g., Gold Standard, Verra, or Japan’s J-Credit).  
@@ -610,20 +618,19 @@ st.markdown(
   <a class="eco-link" href="{LINK_VERRA}"   target="_blank" rel="noopener">Verra VCS</a>
   <a class="eco-link" href="{LINK_JCREDIT}" target="_blank" rel="noopener">Japan J-Credit</a>
 </div>
-<div class="sdg-wrap">
-  <div class="sdg-row">
-    <div class="sdg-tile">
-      <img src="sdg12.png" alt="SDG 12"/>
-      <div class="sdg-caption">12 Responsible Consumption &amp; Production</div>
-    </div>
-    <div class="sdg-tile">
-      <img src="sdg11.png" alt="SDG 11"/>
-      <div class="sdg-caption">11 Sustainable Cities &amp; Communities</div>
-    </div>
-    <div class="sdg-tile">
-      <img src="sdg13.png" alt="SDG 13"/>
-      <div class="sdg-caption">13 Climate Action</div>
-    </div>
-  </div>
-</div>
 """, unsafe_allow_html=True)
+
+# SDG tiles using st.image() to avoid broken <img> on some hosts
+col1, col2, col3 = st.columns(3)
+def sdg_tile(col, path, label):
+    with col:
+        if os.path.exists(path):
+            st.image(path, width=180)
+        else:
+            st.warning(f"Missing {path}")
+        st.markdown(f"<div class='sdg-caption'>{label}</div>", unsafe_allow_html=True)
+
+sdg_tile(col1, "sdg12.png", "12 Responsible Consumption & Production")
+sdg_tile(col2, "sdg11.png", "11 Sustainable Cities & Communities")
+sdg_tile(col3, "sdg13.png", "13 Climate Action")
+
