@@ -6,6 +6,11 @@ from PIL import Image
 import streamlit as st
 from ultralytics import YOLO
 
+# Live video
+from streamlit_webrtc import webrtc_streamer, VideoProcessorBase, RTCConfiguration
+import av, cv2
+from collections import Counter
+
 st.set_page_config(page_title="When AI Sees Litter — Shibuya", page_icon="♻️", layout="wide")
 
 # ======================= THEME (light; no section borders/lines) =======================
@@ -19,9 +24,15 @@ def apply_theme():
       html, body, [data-testid="stAppViewContainer"]{ background:var(--bg); color:var(--txt); }
       .main .block-container{ padding-top:1rem !important; max-width:1200px; }
 
-      /* Headings & chips */
+      /* Chips & links */
       .pill{ display:inline-block; background:var(--pill); padding:2px 10px 4px 10px;
              border-radius:999px; color:var(--pri2); border:1px solid var(--bd); }
+      .eco-links{ display:flex; gap:10px; margin-top:10px; flex-wrap:wrap; }
+      .eco-link{ border-radius:999px; padding:8px 12px; border:1px solid var(--bd);
+                 background:#fff; text-decoration:none !important; color:var(--pri2) !important; font-weight:700; }
+      .eco-link:hover{ background:var(--pill); }
+      .citybadge{ display:inline-block; background:var(--pill); padding:4px 10px;
+                  border-radius:999px; border:1px solid var(--bd); color:var(--pri2); }
 
       /* Guidance cards */
       .eco-card{ background:#fff; border:none; border-radius:22px; padding:18px 16px;
@@ -31,9 +42,8 @@ def apply_theme():
       .eco-title{ font-weight:900; font-size:1.28rem; }
       .eco-badge{ margin-left:auto; background:var(--pill); color:var(--pri2);
                   border:1px solid var(--bd); border-radius:999px; padding:4px 10px; font-size:.85rem; }
-      .eco-meta{ margin:6px 0 8px 0; color:var(--mut); font-size:.95rem; }
 
-      /* Make "How to put out" stand out */
+      /* Make primary "How to put out" stand out */
       .eco-section-title-primary{ font-weight:900; font-size:1.12rem; color:var(--pri2); margin:8px 0 6px 0; }
       .eco-section-title{ font-weight:800; margin:8px 0 4px 0; }
       .eco-list{ margin:0 0 4px 0; padding-left:18px; }
@@ -41,20 +51,9 @@ def apply_theme():
       .chip-row{ display:flex; flex-wrap:wrap; gap:8px; margin:6px 0 2px 0; }
       .chip{ background:var(--pill); color:var(--pri2); border:1px solid var(--bd);
              border-radius:999px; padding:4px 10px; font-size:.88rem; }
-      .eco-links{ display:flex; gap:10px; margin-top:10px; flex-wrap:wrap; }
-      .eco-link{ border-radius:999px; padding:8px 12px; border:1px solid var(--bd);
-                 background:#fff; text-decoration:none !important; color:var(--pri2) !important; font-weight:700; }
-      .eco-link:hover{ background:var(--pill); }
 
-      .citybadge{ display:inline-block; background:var(--pill); padding:4px 10px;
-                  border-radius:999px; border:1px solid var(--bd); color:var(--pri2); }
-
-      /* SDGs row (local images @ 180px) */
-      .sdg-row{ display:flex; gap:16px; flex-wrap:wrap; align-items:center; }
-      .sdg-card{ display:flex; gap:10px; align-items:center; border:none;
-                 background:#fff; padding:8px 10px; border-radius:14px; box-shadow:0 2px 10px rgba(0,0,0,.04); }
-      .sdg-card img{ width:180px; height:auto; }
-      .sdg-card .txt{ font-weight:700; }
+      /* SDGs row (local images @ 180px) - one row */
+      .sdg-caption{ text-align:center; font-weight:700; }
 
       /* Remove all separators / default hr lines / expander borders */
       [data-testid="stDivider"], hr, [role="separator"]{ display:none !important; }
@@ -78,8 +77,8 @@ CACHED_DIR  = "/tmp/models"
 def _hash_url(u: str) -> str: return hashlib.sha1(u.encode("utf-8")).hexdigest()[:12]
 CACHED_PATH = os.path.join(CACHED_DIR, f"weights_{_hash_url(MODEL_URL)}.pt")
 
-DEFAULT_IMGSZ = int(os.getenv("IMGSZ", "640"))
-IMGSZ_OPTIONS = [320, 416, 512, 640, 800, 960, 1280]
+# Allow 200 in options per your request
+IMGSZ_OPTIONS = [200, 320, 416, 512, 640, 800, 960, 1280]
 
 # Force UI names — class 2 is "Styrofoam piece"
 FORCE_CLASS_NAMES = True
@@ -100,7 +99,6 @@ ICON_AL    = "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1a/Recyclin
 ICON_STEEL = "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Recycling_steel.svg/120px-Recycling_steel.svg.png"
 ICON_PLA   = "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8b/Recycling_pla.svg/120px-Recycling_pla.svg.png"
 
-# Links
 LINK_UN_CNP  = "https://unfccc.int/climate-action/united-nations-carbon-offset-platform"
 LINK_UN_CNP2 = "https://offset.climateneutralnow.org/"
 LINK_WB_MRV  = "https://www.worldbank.org/en/news/feature/2022/07/27/what-you-need-to-know-about-the-measurement-reporting-and-verification-mrv-of-carbon-credits"
@@ -142,7 +140,7 @@ GUIDE_SHIBUYA = {
     "Drink can": {
         "title": "Shibuya disposal: Aluminum or steel can",
         "emoji": "🥫",
-        "materials": None,  # removed per request
+        "materials": None,
         "why_separate": [
             "Clean cans keep a high-value recycling stream.",
             "Aluminum recycling saves major energy vs producing new metal."
@@ -192,7 +190,8 @@ GUIDE_SHIBUYA = {
                 "url": SHIBUYA_PLASTICS_NOTICE
             }
         ],
-        "images": [],
+        # Add a clear "wash & dry" example image (from FP Corporation)
+        "images": ["https://www.fpco.jp/dcms_media/image/appeal_img01_b.jpg"],
         "icons": [ICON_PLA],
         "link": SHIBUYA_GUIDE_URL,
         "poster": SHIBUYA_PLASTICS_NOTICE,
@@ -253,29 +252,6 @@ def load_model():
     return _load_model_cached(path, _cache_key_for(path))
 
 # ======================= Utils =======================
-def pil_to_bgr(pil_img: Image.Image) -> np.ndarray:
-    arr = np.array(pil_img.convert("RGB"))
-    return arr[:, :, ::-1]
-
-def draw_boxes(bgr, dets):
-    import cv2
-    out = bgr.copy()
-    H, W = out.shape[:2]
-    color = (28,160,78)
-    for d in dets:
-        x1, y1, x2, y2 = map(int, d["xyxy"])
-        cv2.rectangle(out, (x1, y1), (x2, y2), color, 2)
-        label = f'{d["class_name"]} {d["score"]:.2f}'
-        font = cv2.FONT_HERSHEY_SIMPLEX; fs, thick = 0.5, 1
-        (tw, th), _ = cv2.getTextSize(label, font, fs, thick)
-        y_text = y1 - 4
-        if y_text - th - 4 < 0: y_text = min(y1 + th + 6, H - 2)
-        x_text = max(0, min(x1, W - tw - 6))
-        cv2.rectangle(out, (x_text, max(0, y_text - th - 4)),
-                           (min(x_text + tw + 6, W - 1), min(y_text + 2, H - 1)), color, -1)
-        cv2.putText(out, label, (x_text + 3, y_text - 2), font, fs, (255,255,255), 1, cv2.LINE_AA)
-    return Image.fromarray(out[:, :, ::-1])
-
 def _get_names_map(pred, model):
     if FORCE_CLASS_NAMES:
         return {i: n for i, n in enumerate(TARGET_NAMES)}
@@ -288,7 +264,7 @@ def _guide_link(url: str, label: str):
     st.markdown(f'<a class="eco-link" href="{url}" target="_blank" rel="noopener">{label}</a>', unsafe_allow_html=True)
 
 def _guidance_text(info: dict):
-    # ORDER: How to put out (primary) FIRST, then Why separate, then Recycles to, then facts
+    # ORDER: How to put out (primary) FIRST, then (renamed) Why separate -> How to put out, then Recycles to, then facts
     st.markdown('<div class="eco-section-title-primary">How to put out</div>', unsafe_allow_html=True)
     st.markdown('<ul class="eco-list">', unsafe_allow_html=True)
     for step in info["steps"]:
@@ -296,7 +272,8 @@ def _guidance_text(info: dict):
     st.markdown('</ul>', unsafe_allow_html=True)
 
     if info.get("why_separate"):
-        st.markdown('<div class="eco-section-title">Why separate?</div>', unsafe_allow_html=True)
+        # renamed per request:
+        st.markdown('<div class="eco-section-title">How to put out</div>', unsafe_allow_html=True)
         st.markdown('<ul class="eco-list">', unsafe_allow_html=True)
         for reason in info["why_separate"]:
             st.markdown(f'<li>{reason}</li>', unsafe_allow_html=True)
@@ -304,7 +281,7 @@ def _guidance_text(info: dict):
 
     if info.get("recycles_to"):
         st.markdown('<div class="eco-section-title">Commonly recycled into</div>', unsafe_allow_html=True)
-        st.markdown('<div class="chip-row">', unsafe_allow_html=True)
+        st.markown('<div class="chip-row">', unsafe_allow_html=True)
         for item in info["recycles_to"]:
             st.markdown(f'<div class="chip">{item}</div>', unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
@@ -353,6 +330,73 @@ def show_guidance_card(label: str, count: int = 0, GUIDE=None):
     st.markdown('</div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
+# ======================= Live video processor (WebRTC) =======================
+class YOLOProcessor(VideoProcessorBase):
+    def __init__(self):
+        self.model = load_model()
+        # Recommended defaults (your chosen values)
+        self.conf = 0.0
+        self.iou = 0.0
+        self.imgsz = 200
+        self.per_class_min = {
+            "Clear plastic bottle": 0.20,
+            "Drink can": 0.20,
+            "Styrofoam piece": 0.20,
+        }
+        self.min_area_pct = 0.20  # percent of image area
+        self.frame_skip = 2       # process every 3rd frame
+        self._cnt = 0
+        self.last_bgr = None
+        self.last_dets = []
+
+    def _names_map(self):
+        return {i: n for i, n in enumerate(TARGET_NAMES)} if FORCE_CLASS_NAMES else getattr(self.model, "names", {0:"Clear plastic bottle",1:"Drink can",2:"Styrofoam piece"})
+
+    def recv(self, frame: av.VideoFrame) -> av.VideoFrame:
+        bgr = frame.to_ndarray(format="bgr24")
+        self._cnt = (self._cnt + 1) % (self.frame_skip + 1)
+        if self._cnt != self.frame_skip:
+            # show incoming frame without inference this time
+            return av.VideoFrame.from_ndarray(bgr, format="bgr24")
+
+        names_map = self._names_map()
+        H, W = bgr.shape[:2]
+        min_area = (self.min_area_pct / 100.0) * (H * W)
+
+        results = self.model.predict(bgr, conf=self.conf, iou=self.iou, imgsz=self.imgsz, verbose=False)
+        pred = results[0]
+        dets = []
+        if pred.boxes is not None and len(pred.boxes) > 0:
+            boxes = pred.boxes.xyxy.cpu().numpy()
+            scores = pred.boxes.conf.cpu().numpy()
+            clsi   = pred.boxes.cls.cpu().numpy().astype(int)
+            for i in range(len(boxes)):
+                x1, y1, x2, y2 = boxes[i].tolist()
+                w = max(0.0, x2 - x1); h = max(0.0, y2 - y1)
+                area = w * h
+                name = names_map.get(int(clsi[i]), str(int(clsi[i])))
+                score = float(scores[i])
+                if score < self.per_class_min.get(name, self.conf): continue
+                if area < min_area: continue
+                dets.append({"xyxy":[x1,y1,x2,y2], "class_name":name, "score":score})
+
+        # Draw boxes
+        color = (28,160,78)  # theme green
+        for d in dets:
+            x1, y1, x2, y2 = map(int, d["xyxy"])
+            cv2.rectangle(bgr, (x1, y1), (x2, y2), color, 2)
+            label = f'{d["class_name"]} {d["score"]:.2f}'
+            (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
+            xt = max(0, min(x1, W - tw - 6))
+            yt = y1 - 4 if y1 - th - 6 >= 0 else min(y1 + th + 6, H - 2)
+            cv2.rectangle(bgr, (xt, max(0, yt - th - 4)), (min(xt + tw + 6, W - 1), min(yt + 2, H - 1)), color, -1)
+            cv2.putText(bgr, label, (xt + 3, yt - 2), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1, cv2.LINE_AA)
+
+        # keep state for the "Capture for guidance" button
+        self.last_bgr = bgr
+        self.last_dets = dets
+        return av.VideoFrame.from_ndarray(bgr, format="bgr24")
+
 # ======================= HEADER (logo only) =======================
 logo_col, _ = st.columns([3, 5], vertical_alignment="center")
 with logo_col:
@@ -362,162 +406,187 @@ with logo_col:
 # ======================= MAIN INTRO =======================
 st.markdown("### Let’s Start Sorting!")
 
-# (Move City/Ward block here — between heading and step 1)
+# City/Ward block (below heading, before step 1)
 c1, c2 = st.columns([2, 6], vertical_alignment="center")
 with c1:
     city_label = st.selectbox("City / Ward", ["Shibuya (Tokyo)"], index=0)
 with c2:
     st.markdown("<div class='citybadge'>More cities coming soon</div>", unsafe_allow_html=True)
-city_id = CITY_MAP["Shibuya (Tokyo)"]
+city_id = CITY_MAP[city_label]
 GUIDE = GUIDE_BY_CITY.get(city_id, {})
 
-# Steps (with updated step 3 wording)
+# Steps (bold)
 st.markdown("""
 <ol class="howto">
-  <li>**Select Upload image** (or open your **Camera**).</li>
-  <li>**Detection runs** and shows results.</li>
-  <li>Follow the **custom disposal instructions below for your city**.</li>
+  <li><strong>Select Upload image</strong> (or open your <strong>Camera</strong>).</li>
+  <li><strong>Detection runs</strong> and shows results.</li>
+  <li>Follow the <strong>custom disposal instructions below for your city</strong>.</li>
 </ol>
 """, unsafe_allow_html=True)
 
-# ======================= Inputs (source + auto-run + image pickers) =======================
-src = st.radio("Input source", ["Upload image", "Camera"], index=0, horizontal=True)
-auto_run = st.toggle("Auto-run detection", value=True, help="Run detection automatically after you choose/take a photo.")
-image = None
+# ======================= Inputs (source + auto-run + pickers) =======================
+src = st.radio("Input source", ["Upload image", "Camera", "Live (beta)"], index=0, horizontal=True)
 
-if src == "Upload image":
-    up = st.file_uploader("Choose an image", type=["jpg","jpeg","png"])
-    if up: image = Image.open(up).convert("RGB")
+# --- Live mode (WebRTC) ---
+if src == "Live (beta)":
+    RTC_CONFIG = RTCConfiguration({"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]})
+    webrtc_ctx = webrtc_streamer(
+        key="webrtc-litter",
+        mode="SENDRECV",
+        rtc_configuration=RTC_CONFIG,
+        media_stream_constraints={"video": True, "audio": False},
+        video_processor_factory=YOLOProcessor,
+    )
+    colA, colB = st.columns([1,2])
+    with colA:
+        if webrtc_ctx and webrtc_ctx.video_processor:
+            st.caption("Tip: capture the current frame to get disposal cards.")
+            if st.button("Capture for guidance"):
+                vp = webrtc_ctx.video_processor
+                if vp.last_bgr is not None and len(vp.last_dets) > 0:
+                    st.image(Image.fromarray(cv2.cvtColor(vp.last_bgr, cv2.COLOR_BGR2RGB)),
+                             caption="Captured frame", use_container_width=True)
+                    counts = Counter([d["class_name"] for d in vp.last_dets])
+                    detected_labels = sorted(counts.keys())
+                    guide_labels = [lbl for lbl in detected_labels if lbl in GUIDE]
+                    if guide_labels:
+                        st.subheader(f"Disposal instructions — {city_label}")
+                        for lbl in guide_labels:
+                            show_guidance_card(lbl, counts.get(lbl, 0), GUIDE=GUIDE)
+                    else:
+                        st.caption("No local guidance available for these detections.")
+                else:
+                    st.info("No objects detected yet. Hold the item steady and try again.")
+    # skip static image flow when in live mode
 else:
-    shot = st.camera_input("Open your camera", key="cam1")
-    if shot: image = Image.open(shot).convert("RGB")
+    # Static (Upload image / Camera)
+    auto_run = st.toggle("Auto-run detection", value=True, help="Run detection automatically after you choose/take a photo.")
+    image = None
 
-# ======================= Advanced settings (moved below inputs) =======================
-# Recommended defaults (auto-applied)
-_REC_CONF=0.00; _REC_IOU=0.00; _REC_IMGSZ=640
-_REC_BOTTLE=0.20; _REC_CAN=0.20; _REC_FOAM=0.20; _REC_AREA_PCT=0.20; _REC_TTA=False
-
-conf=_REC_CONF; iou=_REC_IOU; imgsz=_REC_IMGSZ
-bottle_min=_REC_BOTTLE; can_min=_REC_CAN; foam_min=_REC_FOAM
-min_area_pct=_REC_AREA_PCT; tta=_REC_TTA
-
-with st.expander("Advanced settings (optional)"):
-    preset = st.radio("Preset", ["Minimum filters", "Recommended", "Strict"], index=1, horizontal=True)
-    if preset == "Minimum filters":
-        conf=0.05; iou=0.10; imgsz=640
-        bottle_min=0.00; can_min=0.00; foam_min=0.00; min_area_pct=0.0; tta=False
-    elif preset == "Recommended":
-        conf=_REC_CONF; iou=_REC_IOU; imgsz=_REC_IMGSZ
-        bottle_min=_REC_BOTTLE; can_min=_REC_CAN; foam_min=_REC_FOAM; min_area_pct=_REC_AREA_PCT; tta=_REC_TTA
-    elif preset == "Strict":
-        conf=0.35; iou=0.50; imgsz=640
-        bottle_min=0.70; can_min=0.70; foam_min=0.75; min_area_pct=0.5; tta=False
-
-    conf = st.slider("Base confidence", 0.0, 0.95, float(conf), 0.01)
-    iou  = st.slider("IoU",            0.0, 0.90, float(iou),  0.01)
-    imgsz = int(st.select_slider("Inference image size", options=[320,416,512,640,800,960,1280], value=int(imgsz)))
-    c1a, c2a, c3a, c4a = st.columns(4)
-    bottle_min   = c1a.slider("Min conf: Bottle",    0.0, 1.0, float(bottle_min),   0.01)
-    can_min      = c2a.slider("Min conf: Can",       0.0, 1.0, float(can_min),      0.01)
-    foam_min     = c3a.slider("Min conf: Styrofoam", 0.0, 1.0, float(foam_min),     0.01)
-    min_area_pct = c4a.slider("Min box area (%)",    0.0, 5.0,  float(min_area_pct), 0.1,
-                              help="Ignore tiny boxes by percent of image area.")
-    tta = st.toggle("Test time augmentation", value=tta, help="Slower; sometimes reduces false positives.")
-
-# ======================= Load model (optional) =======================
-if st.button("Load model"):
-    _ = load_model()
-    st.success("Model ready.")
-
-# ======================= Detection =======================
-def run_detection(image_pil: Image.Image):
-    model = load_model()
-    bgr = np.array(image_pil.convert("RGB"))[:, :, ::-1]
-    results = model.predict(bgr, conf=conf, iou=iou, imgsz=imgsz, verbose=False, augment=tta)
-    pred = results[0]
-    if pred.boxes is None or len(pred.boxes) == 0:
-        st.info("No detections")
-        return [], {}
-    boxes = pred.boxes.xyxy.cpu().numpy()
-    scores = pred.boxes.conf.cpu().numpy()
-    clsi   = pred.boxes.cls.cpu().numpy().astype(int)
-
-    # Names
-    if FORCE_CLASS_NAMES:
-        names_map = {i:n for i,n in enumerate(TARGET_NAMES)}
+    if src == "Upload image":
+        up = st.file_uploader("Choose an image", type=["jpg","jpeg","png"])
+        if up: image = Image.open(up).convert("RGB")
     else:
-        nm = getattr(model, "names", None)
-        if isinstance(nm, dict): names_map = nm
-        elif isinstance(nm, list): names_map = {i:n for i,n in enumerate(nm)}
-        else: names_map = {0:"Clear plastic bottle", 1:"Drink can", 2:"Styrofoam piece"}
+        shot = st.camera_input("Open your camera", key="cam1")
+        if shot: image = Image.open(shot).convert("RGB")
 
-    per_class_min = {
-        "Clear plastic bottle": bottle_min,
-        "Drink can":           can_min,
-        "Styrofoam piece":     foam_min,
-    }
+    # ======================= Advanced settings (below inputs) =======================
+    # Recommended defaults (auto) — imgsz=200 as requested
+    _REC_CONF=0.00; _REC_IOU=0.00; _REC_IMGSZ=200
+    _REC_BOTTLE=0.20; _REC_CAN=0.20; _REC_FOAM=0.20; _REC_AREA_PCT=0.20; _REC_TTA=False
 
-    H, W = bgr.shape[:2]
-    min_area = (min_area_pct / 100.0) * (H * W)
+    conf=_REC_CONF; iou=_REC_IOU; imgsz=_REC_IMGSZ
+    bottle_min=_REC_BOTTLE; can_min=_REC_CAN; foam_min=_REC_FOAM
+    min_area_pct=_REC_AREA_PCT; tta=_REC_TTA
 
-    dets, counts = [], {}
-    for i in range(len(boxes)):
-        x1, y1, x2, y2 = boxes[i].tolist()
-        w = max(0.0, x2 - x1); h = max(0.0, y2 - y1)
-        area = w * h
-        c = int(clsi[i])
-        name = names_map.get(c, str(c))
-        s = float(scores[i])
+    with st.expander("Advanced settings (optional)"):
+        preset = st.radio("Preset", ["Minimum filters", "Recommended", "Strict"], index=1, horizontal=True)
+        if preset == "Minimum filters":
+            conf=0.05; iou=0.10; imgsz=IMGSZ_OPTIONS[0]  # 200
+            bottle_min=0.00; can_min=0.00; foam_min=0.00; min_area_pct=0.0; tta=False
+        elif preset == "Recommended":
+            conf=_REC_CONF; iou=_REC_IOU; imgsz=_REC_IMGSZ
+            bottle_min=_REC_BOTTLE; can_min=_REC_CAN; foam_min=_REC_FOAM; min_area_pct=_REC_AREA_PCT; tta=_REC_TTA
+        elif preset == "Strict":
+            conf=0.35; iou=0.50; imgsz=640
+            bottle_min=0.70; can_min=0.70; foam_min=0.75; min_area_pct=0.5; tta=False
 
-        if s < per_class_min.get(name, conf): continue
-        if area < min_area: continue
+        conf = st.slider("Base confidence", 0.0, 0.95, float(conf), 0.01)
+        iou  = st.slider("IoU",            0.0, 0.90, float(iou),  0.01)
+        imgsz = int(st.select_slider("Inference image size", options=IMGSZ_OPTIONS, value=int(imgsz)))
+        c1a, c2a, c3a, c4a = st.columns(4)
+        bottle_min   = c1a.slider("Min conf: Bottle",    0.0, 1.0, float(bottle_min),   0.01)
+        can_min      = c2a.slider("Min conf: Can",       0.0, 1.0, float(can_min),      0.01)
+        foam_min     = c3a.slider("Min conf: Styrofoam", 0.0, 1.0, float(foam_min),     0.01)
+        min_area_pct = c4a.slider("Min box area (%)",    0.0, 5.0,  float(min_area_pct), 0.1,
+                                  help="Ignore tiny boxes by percent of image area.")
+        tta = st.toggle("Test time augmentation", value=tta, help="Slower; sometimes reduces false positives.")
 
-        dets.append({"xyxy":[x1,y1,x2,y2], "class_id":c, "class_name":name, "score":s})
-        counts[name] = counts.get(name, 0) + 1
+    # Optional: load model
+    if st.button("Load model"):
+        _ = load_model()
+        st.success("Model ready.")
 
-    return dets, counts
+    # ======================= Detection (static) =======================
+    def run_detection(image_pil: Image.Image):
+        model = load_model()
+        bgr = np.array(image_pil.convert("RGB"))[:, :, ::-1]
+        results = model.predict(bgr, conf=conf, iou=iou, imgsz=imgsz, verbose=False, augment=tta)
+        pred = results[0]
+        if pred.boxes is None or len(pred.boxes) == 0:
+            st.info("No detections")
+            return [], {}
+        boxes = pred.boxes.xyxy.cpu().numpy()
+        scores = pred.boxes.conf.cpu().numpy()
+        clsi   = pred.boxes.cls.cpu().numpy().astype(int)
 
-def draw_and_show(image_pil: Image.Image, dets):
-    import cv2
-    bgr = np.array(image_pil.convert("RGB"))[:, :, ::-1]
-    out = bgr.copy()
-    color = (28,160,78)
-    H, W = out.shape[:2]
-    for d in dets:
-        x1, y1, x2, y2 = map(int, d["xyxy"])
-        cv2.rectangle(out, (x1, y1), (x2, y2), color, 2)
-        label = f'{d["class_name"]} {d["score"]:.2f}'
-        (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
-        y_text = y1 - 4
-        if y_text - th - 4 < 0: y_text = min(y1 + th + 6, H - 2)
-        x_text = max(0, min(x1, W - tw - 6))
-        cv2.rectangle(out, (x_text, max(0, y_text - th - 4)),
-                           (min(x_text + tw + 6, W - 1), min(y_text + 2, H - 1)), color, -1)
-        cv2.putText(out, label, (x_text + 3, y_text - 2), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1, cv2.LINE_AA)
-    st.image(Image.fromarray(out[:, :, ::-1]), caption="Detections", use_container_width=True)
+        names_map = {i:n for i,n in enumerate(TARGET_NAMES)} if FORCE_CLASS_NAMES else _get_names_map(pred, model)
+        per_class_min = {
+            "Clear plastic bottle": bottle_min,
+            "Drink can":           can_min,
+            "Styrofoam piece":     foam_min,
+        }
 
-# Show picked image & (auto) run detection
-if image is not None:
-    st.image(image, caption="Input", use_container_width=True)
-    should_run = auto_run
-    if not auto_run:
-        should_run = st.button("Run detection")
-    if should_run:
-        dets, counts = run_detection(image)
-        if dets:
-            draw_and_show(image, dets)
-            detected_labels = sorted({d["class_name"] for d in dets})
-            guide_labels = [lbl for lbl in detected_labels if lbl in GUIDE]
-            if guide_labels:
-                st.subheader(f"Disposal instructions — {city_label}")
-                for lbl in guide_labels:
-                    show_guidance_card(lbl, counts.get(lbl, 0), GUIDE=GUIDE)
+        H, W = bgr.shape[:2]
+        min_area = (min_area_pct / 100.0) * (H * W)
+
+        dets, counts = [], {}
+        for i in range(len(boxes)):
+            x1, y1, x2, y2 = boxes[i].tolist()
+            w = max(0.0, x2 - x1); h = max(0.0, y2 - y1)
+            area = w * h
+            c = int(clsi[i])
+            name = names_map.get(c, str(c))
+            s = float(scores[i])
+
+            if s < per_class_min.get(name, conf): continue
+            if area < min_area: continue
+
+            dets.append({"xyxy":[x1,y1,x2,y2], "class_id":c, "class_name":name, "score":s})
+            counts[name] = counts.get(name, 0) + 1
+
+        return dets, counts
+
+    def draw_and_show(image_pil: Image.Image, dets):
+        bgr = np.array(image_pil.convert("RGB"))[:, :, ::-1]
+        out = bgr.copy()
+        color = (28,160,78)
+        H, W = out.shape[:2]
+        for d in dets:
+            x1, y1, x2, y2 = map(int, d["xyxy"])
+            cv2.rectangle(out, (x1, y1), (x2, y2), color, 2)
+            label = f'{d["class_name"]} {d["score"]:.2f}'
+            (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
+            y_text = y1 - 4
+            if y_text - th - 4 < 0: y_text = min(y1 + th + 6, H - 2)
+            x_text = max(0, min(x1, W - tw - 6))
+            cv2.rectangle(out, (x_text, max(0, y_text - th - 4)),
+                               (min(x_text + tw + 6, W - 1), min(y_text + 2, H - 1)), color, -1)
+            cv2.putText(out, label, (x_text + 3, y_text - 2), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1, cv2.LINE_AA)
+        st.image(Image.fromarray(out[:, :, ::-1]), caption="Detections", use_container_width=True)
+
+    # Auto-run workflow
+    if image is not None:
+        st.image(image, caption="Input", use_container_width=True)
+        should_run = auto_run
+        if not auto_run:
+            should_run = st.button("Run detection")
+        if should_run:
+            dets, counts = run_detection(image)
+            if dets:
+                draw_and_show(image, dets)
+                detected_labels = sorted({d["class_name"] for d in dets})
+                guide_labels = [lbl for lbl in detected_labels if lbl in GUIDE]
+                if guide_labels:
+                    st.subheader(f"Disposal instructions — {city_label}")
+                    for lbl in guide_labels:
+                        show_guidance_card(lbl, counts.get(lbl, 0), GUIDE=GUIDE)
+                else:
+                    st.caption("No local guidance to show for these detections.")
             else:
-                st.caption("No local guidance to show for these detections.")
-        else:
-            st.info("All detections were filtered by thresholds. Try lowering per-class thresholds or min box area.")
+                st.info("All detections were filtered by thresholds. Try lowering per-class thresholds or min box area.")
 
-# ======================= Impact & SDGs (local images @ 180px) =======================
+# ======================= Impact & SDGs (one row) =======================
 st.markdown("#### Impact & SDGs")
 st.markdown("""
 - **Carbon credits (what they are):** A carbon credit represents **1 tonne of CO₂-equivalent** reduced or removed. Credits exist only when a **registered project** follows an **approved methodology** and passes **MRV**; they are then **issued on a registry** (e.g., Gold Standard, Verra, or Japan’s J-Credit).  
@@ -535,16 +604,15 @@ st.markdown(
 </div>
 """, unsafe_allow_html=True)
 
-sdgs = [
-    ("sdg12.png", "12 Responsible Consumption & Production"),
-    ("sdg11.png", "11 Sustainable Cities & Communities"),
-    ("sdg13.png", "13 Climate Action"),
-]
-st.markdown('<div class="sdg-row">', unsafe_allow_html=True)
-for img, caption in sdgs:
-    st.markdown('<div class="sdg-card">', unsafe_allow_html=True)
-    if os.path.exists(img): st.image(img, width=180)
-    else: st.markdown(f"*Missing {img}*")
-    st.markdown(f"<div class='txt'>{caption}</div>", unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
-st.markdown('</div>', unsafe_allow_html=True)
+col1, col2, col3 = st.columns(3)
+def sdg_cell(col, path, label):
+    with col:
+        if os.path.exists(path):
+            st.image(path, width=180)
+        else:
+            st.markdown(f"*Missing {path}*")
+        st.markdown(f"<div class='sdg-caption'>{label}</div>", unsafe_allow_html=True)
+
+sdg_cell(col1, "sdg12.png", "12 Responsible Consumption & Production")
+sdg_cell(col2, "sdg11.png", "11 Sustainable Cities & Communities")
+sdg_cell(col3, "sdg13.png", "13 Climate Action")

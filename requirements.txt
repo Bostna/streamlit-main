@@ -7,3 +7,6 @@ pillow
 numpy
 pandas
 requests
+streamlit-webrtc
+av
+aiortc
