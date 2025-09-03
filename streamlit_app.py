@@ -358,66 +358,6 @@ class YOLOProcessor(VideoProcessorBase):
         except Exception:
             pass
 
-        # Optional lock if you ever share a model; here each processor has its own, so not needed.
-        self._lock = threading.Lock()
-
-    def _names_map(self):
-        if FORCE_CLASS_NAMES:
-            return {i: n for i, n in enumerate(TARGET_NAMES)}
-        return getattr(self.model, "names", {0:"Clear plastic bottle",1:"Drink can",2:"Styrofoam piece"})
-
-    def _extract_dets(self, pred, H, W, names_map, min_area):
-        dets = []
-        if pred.boxes is not None and len(pred.boxes) > 0:
-            boxes  = pred.boxes.xyxy.cpu().numpy()
-            scores = pred.boxes.conf.cpu().numpy()
-            clsi   = pred.boxes.cls.cpu().numpy().astype(int)
-            for i in range(len(boxes)):
-                x1, y1, x2, y2 = boxes[i].tolist()
-                w = max(0.0, x2 - x1); h = max(0.0, y2 - y1)
-                area = w * h
-                name  = names_map.get(int(clsi[i]), str(int(clsi[i])))
-                score = float(scores[i])
-                if not self.draw_all_debug:
-                    if score < self.per_class_min.get(name, self.conf): continue
-                    if area  < min_area: continue
-                dets.append({"xyxy":[x1,y1,x2,y2], "class_name":name, "score":score})
-        return dets
-
-    def recv(self, frame: av.VideoFrame) -> av.VideoFrame:
-        bgr = frame.to_ndarray(format="bgr24")
-        H, W = bgr.shape[:2]
-        names_map = self._names_map()
-        min_area = (self.min_area_pct / 100.0) * (H * W)
-
-        t0 = time.perf_counter()
-        with self._lock:
-            results = self.model.predict(bgr, conf=self.conf, iou=self.iou, imgsz=self.imgsz, verbose=False, device="cpu")
-        pred = results[0]
-        dets = self._extract_dets(pred, H, W, names_map, min_area)
-        self.last_infer_ms = (time.perf_counter() - t0) * 1000.0
-
-        # Draw
-        color = (28,160,78)
-        for d in dets:
-            x1, y1, x2, y2 = map(int, d["xyxy"])
-            cv2.rectangle(bgr, (x1, y1), (x2, y2), color, 3)
-            label = f'{d["class_name"]} {d["score"]:.2f}'
-            (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)
-            xt = max(0, min(x1, W - tw - 6))
-            yt = y1 - 6 if y1 - th - 8 >= 0 else min(y1 + th + 10, H - 2)
-            cv2.rectangle(bgr, (xt, max(0, yt - th - 6)), (min(xt + tw + 8, W - 1), min(yt + 3, H - 1)), color, -1)
-            cv2.putText(bgr, label, (xt + 4, yt - 4), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255,255,255), 2, cv2.LINE_AA)
-
-        # Debug overlay
-        dbg = f"{len(dets)} dets | {self.last_infer_ms:.0f} ms | imgsz {self.imgsz}" + (" | DEBUG" if self.draw_all_debug else "")
-        cv2.putText(bgr, dbg, (8, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0,0,0), 3, cv2.LINE_AA)
-        cv2.putText(bgr, dbg, (8, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255,255,255), 1, cv2.LINE_AA)
-
-        self.last_bgr = bgr
-        self.last_dets = dets
-        return av.VideoFrame.from_ndarray(bgr, format="bgr24")
-
 # ======================= HEADER (logo only) =======================
 logo_col, _ = st.columns([3, 5])
 with logo_col:
