@@ -246,13 +246,27 @@ def _cache_key_for(path: str) -> str:
 def _load_model_cached(path: str, key: str):
     m = YOLO(path)
     if FORCE_CLASS_NAMES:
-        try: m.names = {i: n for i, n in enumerate(TARGET_NAMES)}
-        except Exception: pass
+        try:
+            m.names = {i: n for i, n in enumerate(TARGET_NAMES)}
+        except Exception:
+            pass
     return m
 
 def load_model():
     path = _ensure_model_path()
     return _load_model_cached(path, _cache_key_for(path))
+
+# ===== Preload model once for every mode =====
+GLOBAL_MODEL = None
+def ensure_global_model():
+    """Return the single shared YOLO model instance."""
+    global GLOBAL_MODEL
+    if GLOBAL_MODEL is None:
+        GLOBAL_MODEL = load_model()  # uses @st.cache_resource internally
+    return GLOBAL_MODEL
+
+# Preload at app startup so it's ready for Upload/Camera/Live
+_ = ensure_global_model()
 
 # ======================= Utils =======================
 def _get_names_map(pred, model):
@@ -267,7 +281,8 @@ def _guide_link(url: str, label: str):
     st.markdown(f'<a class="eco-link" href="{url}" target="_blank" rel="noopener">{label}</a>', unsafe_allow_html=True)
 
 def _guidance_text(info: dict):
-    # ORDER: How to put out (primary) FIRST, then (renamed) Why separate -> How to put out, then Recycles to, then facts
+    # ORDER: How to put out (primary) FIRST, then the renamed “Why separate” section (also titled 'How to put out'),
+    # then “Commonly recycled into”, then “Did you know?”
     st.markdown('<div class="eco-section-title-primary">How to put out</div>', unsafe_allow_html=True)
     st.markdown('<ul class="eco-list">', unsafe_allow_html=True)
     for step in info["steps"]:
@@ -335,7 +350,7 @@ def show_guidance_card(label: str, count: int = 0, GUIDE=None):
 # ======================= Live video processor (WebRTC) =======================
 class YOLOProcessor(VideoProcessorBase):
     def __init__(self):
-        self.model = load_model()
+        self.model = ensure_global_model()  # preload & reuse
         self.conf = 0.0
         self.iou = 0.0
         self.imgsz = 200
@@ -345,7 +360,7 @@ class YOLOProcessor(VideoProcessorBase):
             "Styrofoam piece": 0.20,
         }
         self.min_area_pct = 0.20  # percent of image area
-        self.frame_skip = 2       # process every 3rd frame
+        self.frame_skip = 0       # process every frame for immediate detections
         self._cnt = 0
         self.last_bgr = None
         self.last_dets = []
@@ -435,7 +450,7 @@ if src == "Live (beta)":
         media_stream_constraints={"video": True, "audio": False},
         video_processor_factory=YOLOProcessor,
     )
-    colA, colB = st.columns([1,2])
+    colA, _ = st.columns([1,2])
     with colA:
         if webrtc_ctx and webrtc_ctx.video_processor:
             st.caption("Tip: capture the current frame to get disposal cards.")
@@ -468,6 +483,7 @@ else:
         if shot: image = Image.open(shot).convert("RGB")
 
     # ======================= Advanced settings (below inputs) =======================
+    # Recommended defaults (auto) — imgsz=200
     _REC_CONF=0.00; _REC_IOU=0.00; _REC_IMGSZ=200
     _REC_BOTTLE=0.20; _REC_CAN=0.20; _REC_FOAM=0.20; _REC_AREA_PCT=0.20; _REC_TTA=False
 
@@ -498,13 +514,11 @@ else:
                                   help="Ignore tiny boxes by percent of image area.")
         tta = st.toggle("Test time augmentation", value=tta, help="Slower; sometimes reduces false positives.")
 
-    if st.button("Load model"):
-        _ = load_model()
-        st.success("Model ready.")
+    st.caption("Model loaded ✅")
 
     # ======================= Detection (static) =======================
     def run_detection(image_pil: Image.Image):
-        model = load_model()
+        model = ensure_global_model()
         bgr = np.array(image_pil.convert("RGB"))[:, :, ::-1]
         results = model.predict(bgr, conf=conf, iou=iou, imgsz=imgsz, verbose=False, augment=tta)
         pred = results[0]
