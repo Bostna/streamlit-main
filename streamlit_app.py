@@ -6,13 +6,10 @@ import numpy as np
 from PIL import Image
 import streamlit as st
 from ultralytics import YOLO
-
-# Live video
-from streamlit_webrtc import webrtc_streamer, VideoProcessorBase, RTCConfiguration, WebRtcMode
-import av, cv2
+import cv2
 from collections import Counter
 
-st.set_page_config(page_title="When AI Sees Litter — Shibuya", page_icon="♻️", layout="wide")
+st.set_page_config(page_title="When AI Sees Litter · Shibuya", page_icon="♻️", layout="wide")
 
 # ======================= THEME (light; no section borders/lines) =======================
 def apply_theme():
@@ -77,7 +74,7 @@ CACHED_PATH = os.path.join(CACHED_DIR, f"weights_{_hash_url(MODEL_URL)}.pt")
 # Static-mode options
 IMGSZ_OPTIONS = [200, 320, 416, 512, 640, 800, 960, 1280]
 
-# Force UI names — class 2 is "Styrofoam piece"
+# Force UI names
 FORCE_CLASS_NAMES = True
 TARGET_NAMES = ["Clear plastic bottle", "Drink can", "Styrofoam piece"]
 
@@ -110,9 +107,9 @@ GUIDE_SHIBUYA = {
     "Clear plastic bottle": {
         "title": "Shibuya disposal: PET bottle",
         "emoji": "🧴",
-        "materials": "Bottle body is PET (polyethylene terephthalate). Caps and labels are PP/PE.",
+        "materials": "Bottle body is PET. Caps and labels are PP or PE.",
         "why_separate": [
-            "Caps and labels (PP/PE) contaminate the PET stream if left on.",
+            "Caps and labels contaminate the PET stream if left on.",
             "Shibuya asks you to remove caps and labels and sort them with Plastics."
         ],
         "steps": [
@@ -122,9 +119,9 @@ GUIDE_SHIBUYA = {
             "Put PET bottles in a transparent bag for PET.",
             "Put caps and labels with Plastics."
         ],
-        "recycles_to": ["New PET bottles", "Fibers for clothing and bags", "Sheets/films"],
+        "recycles_to": ["New PET bottles", "Fibers for clothing and bags", "Sheets and films"],
         "facts": [
-            {"text": "Japan’s reported plastic 'recycling' rate includes thermal recovery; clean PET enables high-value bottle-to-bottle.",
+            {"text": "Japan’s reported plastic recycling rate includes thermal recovery. Clean PET enables high value bottle to bottle.",
              "url": "https://japan-forward.com/japans-plastic-recycling-the-unseen-reality/"},
         ],
         "images": FUKUOKA_PET_STEPS,
@@ -137,23 +134,23 @@ GUIDE_SHIBUYA = {
         "emoji": "🥫",
         "materials": None,
         "why_separate": [
-            "Clean cans keep a high-value recycling stream.",
-            "Aluminum recycling saves major energy vs producing new metal."
+            "Clean cans keep a high value recycling stream.",
+            "Aluminum recycling saves major energy compared with producing new metal."
         ],
         "steps": [
             "Rinse the can.",
-            "Optional: Lightly crush/squeeze to save space (only if your building/bin instructions allow).",
+            "Optional: Lightly crush or squeeze to save space if your building allows.",
             "Put cans in a transparent bag for cans."
         ],
         "recycles_to": [
-            "New beverage cans (can-to-can)",
-            "Automotive and construction parts (aluminum)",
+            "New beverage cans",
+            "Automotive and construction parts",
             "Remelt scrap ingots"
         ],
         "facts": [
-            {"text": "Coca-Cola Bottlers Japan promotes CAN-to-CAN, including products using recycled aluminum bodies.",
+            {"text": "Coca Cola Bottlers Japan promotes can to can with recycled aluminum bodies.",
              "url": "https://en.ccbji.co.jp/news/detail.php?id=1347"},
-            {"text": "Hanwa: used aluminum cans are cleaned, melted and supplied as remelt scrap ingots then used again as cans.",
+            {"text": "Hanwa explains used aluminum cans are cleaned, melted and supplied as remelt scrap ingots then used again as cans.",
              "url": HANWA_CAN2CAN},
         ],
         "images": [HANWA_CAN2CAN, CCBJI_CAN2CAN],
@@ -164,19 +161,19 @@ GUIDE_SHIBUYA = {
     "Styrofoam piece": {
         "title": "Shibuya disposal: Styrofoam piece",
         "emoji": "🧊",
-        "materials": "Expanded polystyrene (EPS) foam.",
+        "materials": "Expanded polystyrene foam.",
         "why_separate": [
-            "Styrofoam is polystyrene. Clean pieces can go to Plastic items when marked as packaging.",
+            "Clean pieces can go to Plastic items when marked as packaging.",
             "Keeping plastics clean improves material recovery quality."
         ],
         "steps": [
-            "Remove food residue; wipe or quick rinse if necessary.",
+            "Remove food residue and wipe or quick rinse if needed.",
             "Break large pieces down to fit bags.",
-            "Put Styrofoam with Plastic items in a clear or semi-clear bag following building day."
+            "Put Styrofoam with Plastic items in a clear or semi clear bag following building day."
         ],
-        "recycles_to": ["Foam trays and molded parts", "Pellets for plastic goods", "(Sometimes) thermal recovery"],
+        "recycles_to": ["Foam trays and molded parts", "Pellets for plastic goods", "Sometimes thermal recovery"],
         "facts": [
-            {"text": "Plastic sorting rules vary by municipality; see Shibuya’s plastics notice for details.",
+            {"text": "Plastic sorting rules vary by municipality. See Shibuya’s plastics notice for details.",
              "url": SHIBUYA_PLASTICS_NOTICE},
         ],
         "images": ["https://www.fpco.jp/dcms_media/image/appeal_img01_b.jpg"],
@@ -207,7 +204,7 @@ def _download_file(url: str, dest: str):
             st.error(
                 f"Failed to download model from URL:\n{url}\n\n"
                 f"requests error: {e_req}\nurllib error: {e_url}\n\n"
-                "If private or rate-limited, make the file public or commit it to this repo."
+                "If private or rate limited, make the file public or commit it to this repo."
             )
             st.stop()
 
@@ -241,7 +238,7 @@ def load_model():
     path = _ensure_model_path()
     return _load_model_cached(path, _cache_key_for(path))
 
-# Preload for static modes (Upload/Camera)
+# Preload for static modes
 GLOBAL_MODEL = load_model()
 
 # ======================= Utils =======================
@@ -264,7 +261,7 @@ def _guidance_text(info: dict):
     st.markdown('</ul>', unsafe_allow_html=True)
 
     if info.get("why_separate"):
-        st.markdown('<div class="eco-section-title">How to put out</div>', unsafe_allow_html=True)
+        st.markdown('<div class="eco-section-title">How to manage</div>', unsafe_allow_html=True)
         st.markdown('<ul class="eco-list">', unsafe_allow_html=True)
         for reason in info["why_separate"]:
             st.markdown(f'<li>{reason}</li>', unsafe_allow_html=True)
@@ -321,208 +318,6 @@ def show_guidance_card(label: str, count: int = 0, GUIDE=None):
     st.markdown('</div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
-# ======================= Live video processor (WebRTC) with tuning =======================
-class YOLOProcessor(VideoProcessorBase):
-    """
-    Separate YOLO instance per processor. Adds image tuning for brighter live feed.
-    """
-    def __init__(self):
-        # Build a dedicated model for this thread
-        weights_path = _ensure_model_path()
-        self.model = YOLO(weights_path)
-        if FORCE_CLASS_NAMES:
-            try:
-                self.model.names = {i: n for i, n in enumerate(TARGET_NAMES)}
-            except Exception:
-                pass
-        try:
-            self.model.fuse()
-        except Exception:
-            pass
-
-        # Live-friendly defaults
-        self.conf = 0.0
-        self.iou  = 0.45
-        self.imgsz = 640
-        self.per_class_min = {
-            "Clear plastic bottle": 0.10,
-            "Drink can":            0.10,
-            "Styrofoam piece":      0.10,
-        }
-        self.min_area_pct = 0.02
-        self.draw_all_debug = False
-        self.mirror = False
-
-        # Color order auto-probe
-        self.color_order = "auto"  # "bgr", "rgb", or "auto"
-        self._color_locked = False
-
-        # Image tuning defaults
-        self.gamma = 1.20      # mid-tone brightness
-        self.alpha = 1.00      # contrast multiplier
-        self.beta  = 5         # brightness offset
-        self.use_gray_wb = True
-        self.use_clahe   = False
-        self.denoise     = False
-        self._lut_cache = {}
-
-        self.last_bgr = None
-        self.last_dets = []
-        self.last_infer_ms = 0.0
-
-        # Warm-up
-        try:
-            dummy = np.zeros((self.imgsz, self.imgsz, 3), dtype=np.uint8)
-            _ = self.model.predict(dummy, conf=0.0, iou=self.iou, imgsz=self.imgsz, verbose=False, device="cpu")
-        except Exception:
-            pass
-
-    def _names_map(self):
-        if FORCE_CLASS_NAMES:
-            return {i: n for i, n in enumerate(TARGET_NAMES)}
-        return getattr(self.model, "names", {0:"Clear plastic bottle",1:"Drink can",2:"Styrofoam piece"})
-
-    # ---------- Image tuning helpers ----------
-    def _gamma_lut(self, g: float) -> np.ndarray:
-        g = float(max(0.10, min(5.0, g)))
-        key = round(g, 3)
-        if key not in self._lut_cache:
-            inv = 1.0 / g
-            self._lut_cache[key] = np.array([(i / 255.0) ** inv * 255.0 for i in range(256)], dtype=np.uint8)
-        return self._lut_cache[key]
-
-    def _gray_world_wb(self, bgr: np.ndarray) -> np.ndarray:
-        f = bgr.astype(np.float32)
-        mean_b, mean_g, mean_r = f.reshape(-1, 3).mean(axis=0)
-        kb = (mean_g / (mean_b + 1e-6))
-        kr = (mean_g / (mean_r + 1e-6))
-        f[:, :, 0] *= kb
-        f[:, :, 2] *= kr
-        return np.clip(f, 0, 255).astype(np.uint8)
-
-    def _apply_tuning(self, bgr: np.ndarray) -> np.ndarray:
-        out = bgr
-        if self.use_gray_wb:
-            try: out = self._gray_world_wb(out)
-            except Exception: pass
-        if abs(self.alpha - 1.0) > 1e-3 or abs(self.beta) > 0:
-            out = cv2.convertScaleAbs(out, alpha=float(self.alpha), beta=int(self.beta))
-        if abs(self.gamma - 1.0) > 1e-3:
-            try:
-                lut = self._gamma_lut(self.gamma)
-                out = cv2.LUT(out, lut)
-            except Exception:
-                pass
-        if self.use_clahe:
-            try:
-                lab = cv2.cvtColor(out, cv2.COLOR_BGR2LAB)
-                l, a, b = cv2.split(lab)
-                clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-                cl = clahe.apply(l)
-                limg = cv2.merge((cl, a, b))
-                out = cv2.cvtColor(limg, cv2.COLOR_LAB2BGR)
-            except Exception:
-                pass
-        if self.denoise:
-            try:
-                out = cv2.bilateralFilter(out, d=5, sigmaColor=50, sigmaSpace=50)
-            except Exception:
-                pass
-        return out
-    # ------------------------------------------
-
-    def _extract_dets(self, pred, H, W, names_map, min_area):
-        dets = []
-        if pred.boxes is not None and len(pred.boxes) > 0:
-            boxes  = pred.boxes.xyxy.cpu().numpy()
-            scores = pred.boxes.conf.cpu().numpy()
-            clsi   = pred.boxes.cls.cpu().numpy().astype(int)
-            for i in range(len(boxes)):
-                x1, y1, x2, y2 = boxes[i].tolist()
-                w = max(0.0, x2 - x1); h = max(0.0, y2 - y1)
-                area = w * h
-                name  = names_map.get(int(clsi[i]), str(int(clsi[i])))
-                score = float(scores[i])
-
-                if not self.draw_all_debug:
-                    if score < self.per_class_min.get(name, self.conf): 
-                        continue
-                    if area  < min_area: 
-                        continue
-
-                dets.append({"xyxy":[x1,y1,x2,y2], "class_name":name, "score":score})
-        return dets
-
-    def _infer(self, img):
-        return self.model.predict(
-            img, conf=self.conf, iou=self.iou, imgsz=self.imgsz,
-            max_det=200, device="cpu", verbose=False
-        )
-
-    def recv(self, frame: av.VideoFrame) -> av.VideoFrame:
-        bgr = frame.to_ndarray(format="bgr24")
-        if self.mirror:
-            bgr = cv2.flip(bgr, 1)
-
-        # Apply tuning for both display and inference
-        bgr = self._apply_tuning(bgr)
-
-        H, W = bgr.shape[:2]
-        min_area = (self.min_area_pct / 100.0) * (H * W)
-        names_map = self._names_map()
-
-        t0 = time.perf_counter()
-
-        # Color auto-probe only once
-        if self.color_order == "auto" and not self._color_locked:
-            try:
-                pred_bgr = self._infer(bgr)[0]
-                dets_bgr = self._extract_dets(pred_bgr, H, W, names_map, min_area)
-
-                rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
-                pred_rgb = self._infer(rgb)[0]
-                dets_rgb = self._extract_dets(pred_rgb, H, W, names_map, min_area)
-
-                self.color_order = "rgb" if len(dets_rgb) > len(dets_bgr) else "bgr"
-                self._color_locked = True
-            except Exception:
-                self.color_order = "bgr"
-                self._color_locked = True
-
-        img_for_model = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB) if self.color_order == "rgb" else bgr
-        pred = self._infer(img_for_model)[0]
-        dets = self._extract_dets(pred, H, W, names_map, min_area)
-
-        self.last_infer_ms = (time.perf_counter() - t0) * 1000.0
-
-        # Draw
-        color = (28,160,78)
-        for d in dets:
-            x1, y1, x2, y2 = map(int, d["xyxy"])
-            cv2.rectangle(bgr, (x1, y1), (x2, y2), color, 3)
-            label = f'{d["class_name"]} {d["score"]:.2f}'
-            (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)
-            xt = max(0, min(x1, W - tw - 6))
-            yt = y1 - 6 if y1 - th - 8 >= 0 else min(y1 + th + 10, H - 2)
-            cv2.rectangle(bgr, (xt, max(0, yt - th - 6)), (min(xt + tw + 8, W - 1), min(yt + 3, H - 1)), color, -1)
-            cv2.putText(bgr, label, (xt + 4, yt - 4), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255,255,255), 2, cv2.LINE_AA)
-
-        # Overlay
-        dbg = (
-            f"{len(dets)} dets | {self.last_infer_ms:.0f} ms | imgsz {self.imgsz} | {self.color_order.upper()} "
-            f"| γ {self.gamma:.2f} α {self.alpha:.2f} β {int(self.beta)}"
-            + (" | WB" if self.use_gray_wb else "")
-            + (" | CLAHE" if self.use_clahe else "")
-            + (" | DENOISE" if self.denoise else "")
-            + (" | DEBUG" if self.draw_all_debug else "")
-        )
-        cv2.putText(bgr, dbg, (8, 22), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0,0,0), 3, cv2.LINE_AA)
-        cv2.putText(bgr, dbg, (8, 22), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255,255,255), 1, cv2.LINE_AA)
-
-        self.last_bgr = bgr
-        self.last_dets = dets
-        return av.VideoFrame.from_ndarray(bgr, format="bgr24")
-
 # ======================= HEADER (logo only) =======================
 logo_col, _ = st.columns([3, 5])
 with logo_col:
@@ -546,199 +341,135 @@ st.markdown("""
 <ol class="howto">
   <li><strong>Select Upload image</strong> or open your <strong>Camera</strong>.</li>
   <li><strong>Detection runs</strong> and shows results.</li>
-  <li>Follow the <strong>custom disposal instructions below for your city</strong>.</li>
+  <li>Follow the <strong>custom disposal instructions for your city</strong>.</li>
 </ol>
 """, unsafe_allow_html=True)
 
 # ======================= Inputs (source + auto-run + pickers) =======================
-src = st.radio("Input source", ["Upload image", "Camera", "Live (beta)"], index=0, horizontal=True)
+src = st.radio("Input source", ["Upload image", "Camera"], index=0, horizontal=True)
 
-# --- Live mode (WebRTC) ---
-if src == "Live (beta)":
-    RTC_CONFIG = RTCConfiguration({"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]})
-    webrtc_ctx = webrtc_streamer(
-        key="webrtc-litter",
-        mode=WebRtcMode.SENDRECV,
-        rtc_configuration=RTC_CONFIG,
-        media_stream_constraints={"video": {"width": {"ideal": 1280}, "height": {"ideal": 720}}, "audio": False},
-        video_processor_factory=YOLOProcessor,
-        async_processing=True,
-    )
+auto_run = st.toggle("Auto-run detection", value=True, help="Run detection automatically after you choose or take a photo.")
+image = None
 
-    # Live tuning panel
-    if webrtc_ctx and webrtc_ctx.video_processor:
-        vp = webrtc_ctx.video_processor
-        with st.expander("Live settings (beta)"):
-            vp.imgsz = st.select_slider("Live imgsz", options=[416, 512, 640, 800], value=int(vp.imgsz))
-            vp.min_area_pct = st.slider("Min area (%)", 0.0, 2.0, float(vp.min_area_pct), 0.01)
-            vp.per_class_min["Clear plastic bottle"] = st.slider("Bottle min", 0.0, 1.0, float(vp.per_class_min["Clear plastic bottle"]), 0.01)
-            vp.per_class_min["Drink can"]            = st.slider("Can min",    0.0, 1.0, float(vp.per_class_min["Drink can"]), 0.01)
-            vp.per_class_min["Styrofoam piece"]      = st.slider("Foam min",   0.0, 1.0, float(vp.per_class_min["Styrofoam piece"]), 0.01)
-
-            co = st.radio(
-                "Color order",
-                ["Auto", "BGR", "RGB"],
-                index={"auto":0, "bgr":1, "rgb":2}[vp.color_order] if vp.color_order in ["auto","bgr","rgb"] else 0,
-                horizontal=True
-            )
-            vp.color_order = {"Auto":"auto","BGR":"bgr","RGB":"rgb"}[co]
-            vp._color_locked = (vp.color_order != "auto")
-            vp.draw_all_debug = st.toggle("Draw ALL raw boxes (debug)", value=vp.draw_all_debug)
-            vp.mirror = st.toggle("Mirror (selfie view)", value=vp.mirror)
-
-            st.markdown("**Image tuning**")
-            vp.gamma = st.slider("Gamma (mid-tone brightness)", 0.5, 2.5, float(vp.gamma), 0.05)
-            vp.alpha = st.slider("Contrast α (multiplier)", 0.5, 2.0, float(vp.alpha), 0.05)
-            vp.beta  = st.slider("Brightness β (offset)", -50, 50, int(vp.beta), 1)
-            vp.use_gray_wb = st.toggle("Auto white balance (gray-world)", value=vp.use_gray_wb)
-            vp.use_clahe   = st.toggle("Contrast boost (CLAHE)", value=vp.use_clahe)
-            vp.denoise     = st.toggle("Denoise (bilateral)", value=vp.denoise)
-
-    colA, _ = st.columns([1,2])
-    with colA:
-        if webrtc_ctx and webrtc_ctx.video_processor:
-            st.caption("Tip: capture the current frame to get disposal cards.")
-            if st.button("Capture for guidance"):
-                vp = webrtc_ctx.video_processor
-                if vp.last_bgr is not None and len(vp.last_dets) > 0:
-                    st.image(Image.fromarray(cv2.cvtColor(vp.last_bgr, cv2.COLOR_BGR2RGB)),
-                             caption="Captured frame", use_container_width=True)
-                    counts = Counter([d["class_name"] for d in vp.last_dets])
-                    detected_labels = sorted(counts.keys())
-                    guide_labels = [lbl for lbl in detected_labels if lbl in GUIDE]
-                    if guide_labels:
-                        st.subheader(f"Disposal instructions — {city_label}")
-                        for lbl in guide_labels:
-                            show_guidance_card(lbl, counts.get(lbl, 0), GUIDE=GUIDE)
-                    else:
-                        st.caption("No local guidance available for these detections.")
-                else:
-                    st.info("No objects detected yet. Hold the item closer and in good light, then try again.")
-
-# --- Static (Upload image / Camera) ---
+if src == "Upload image":
+    up = st.file_uploader("Choose an image", type=["jpg","jpeg","png"])
+    if up: image = Image.open(up).convert("RGB")
 else:
-    auto_run = st.toggle("Auto-run detection", value=True, help="Run detection automatically after you choose or take a photo.")
-    image = None
+    shot = st.camera_input("Open your camera", key="cam1")
+    if shot: image = Image.open(shot).convert("RGB")
 
-    if src == "Upload image":
-        up = st.file_uploader("Choose an image", type=["jpg","jpeg","png"])
-        if up: image = Image.open(up).convert("RGB")
-    else:
-        shot = st.camera_input("Open your camera", key="cam1")
-        if shot: image = Image.open(shot).convert("RGB")
+# ======================= Advanced settings (below inputs) =======================
+_REC_CONF=0.00; _REC_IOU=0.00; _REC_IMGSZ=200
+_REC_BOTTLE=0.20; _REC_CAN=0.20; _REC_FOAM=0.20; _REC_AREA_PCT=0.20; _REC_TTA=True
 
-    # ======================= Advanced settings (below inputs) =======================
-    _REC_CONF=0.00; _REC_IOU=0.00; _REC_IMGSZ=200
-    _REC_BOTTLE=0.20; _REC_CAN=0.20; _REC_FOAM=0.20; _REC_AREA_PCT=0.20; _REC_TTA=False
+conf=_REC_CONF; iou=_REC_IOU; imgsz=_REC_IMGSZ
+bottle_min=_REC_BOTTLE; can_min=_REC_CAN; foam_min=_REC_FOAM
+min_area_pct=_REC_AREA_PCT; tta=_REC_TTA
 
-    conf=_REC_CONF; iou=_REC_IOU; imgsz=_REC_IMGSZ
-    bottle_min=_REC_BOTTLE; can_min=_REC_CAN; foam_min=_REC_FOAM
-    min_area_pct=_REC_AREA_PCT; tta=_REC_TTA
+with st.expander("Advanced settings (optional)"):
+    preset = st.radio("Preset", ["Minimum filters", "Recommended", "Strict"], index=1, horizontal=True)
+    if preset == "Minimum filters":
+        conf=0.05; iou=0.10; imgsz=IMGSZ_OPTIONS[0]
+        bottle_min=0.00; can_min=0.00; foam_min=0.00; min_area_pct=0.0; tta=False
+    elif preset == "Recommended":
+        conf=_REC_CONF; iou=_REC_IOU; imgsz=_REC_IMGSZ
+        bottle_min=_REC_BOTTLE; can_min=_REC_CAN; foam_min=_REC_FOAM; min_area_pct=_REC_AREA_PCT; tta=_REC_TTA
+    elif preset == "Strict":
+        conf=0.35; iou=0.50; imgsz=640
+        bottle_min=0.70; can_min=0.70; foam_min=0.75; min_area_pct=0.5; tta=False
 
-    with st.expander("Advanced settings (optional)"):
-        preset = st.radio("Preset", ["Minimum filters", "Recommended", "Strict"], index=1, horizontal=True)
-        if preset == "Minimum filters":
-            conf=0.05; iou=0.10; imgsz=IMGSZ_OPTIONS[0]
-            bottle_min=0.00; can_min=0.00; foam_min=0.00; min_area_pct=0.0; tta=False
-        elif preset == "Recommended":
-            conf=_REC_CONF; iou=_REC_IOU; imgsz=_REC_IMGSZ
-            bottle_min=_REC_BOTTLE; can_min=_REC_CAN; foam_min=_REC_FOAM; min_area_pct=_REC_AREA_PCT; tta=_REC_TTA
-        elif preset == "Strict":
-            conf=0.35; iou=0.50; imgsz=640
-            bottle_min=0.70; can_min=0.70; foam_min=0.75; min_area_pct=0.5; tta=False
+    conf = st.slider("Base confidence", 0.0, 0.95, float(conf), 0.01)
+    iou  = st.slider("IoU",            0.0, 0.90, float(iou),  0.01)
+    imgsz = int(st.select_slider("Inference image size", options=IMGSZ_OPTIONS, value=int(imgsz)))
+    c1a, c2a, c3a, c4a = st.columns(4)
+    bottle_min   = c1a.slider("Min conf: Bottle",    0.0, 1.0, float(bottle_min),   0.01)
+    can_min      = c2a.slider("Min conf: Can",       0.0, 1.0, float(can_min),      0.01)
+    foam_min     = c3a.slider("Min conf: Styrofoam", 0.0, 1.0, float(foam_min),     0.01)
+    min_area_pct = c4a.slider("Min box area (%)",    0.0, 5.0,  float(min_area_pct), 0.1,
+                              help="Ignore tiny boxes by percent of image area.")
+    tta = st.toggle("Test time augmentation", value=tta, help="Slower. Sometimes reduces false positives.")
 
-        conf = st.slider("Base confidence", 0.0, 0.95, float(conf), 0.01)
-        iou  = st.slider("IoU",            0.0, 0.90, float(iou),  0.01)
-        imgsz = int(st.select_slider("Inference image size", options=IMGSZ_OPTIONS, value=int(imgsz)))
-        c1a, c2a, c3a, c4a = st.columns(4)
-        bottle_min   = c1a.slider("Min conf: Bottle",    0.0, 1.0, float(bottle_min),   0.01)
-        can_min      = c2a.slider("Min conf: Can",       0.0, 1.0, float(can_min),      0.01)
-        foam_min     = c3a.slider("Min conf: Styrofoam", 0.0, 1.0, float(foam_min),     0.01)
-        min_area_pct = c4a.slider("Min box area (%)",    0.0, 5.0,  float(min_area_pct), 0.1,
-                                  help="Ignore tiny boxes by percent of image area.")
-        tta = st.toggle("Test time augmentation", value=tta, help="Slower; sometimes reduces false positives.")
+st.caption("Model loaded ✅")
 
-    st.caption("Model loaded ✅")
+# ======================= Detection (static) =======================
+def run_detection(image_pil: Image.Image):
+    model = GLOBAL_MODEL
+    bgr = np.array(image_pil.convert("RGB"))[:, :, ::-1]
+    results = model.predict(bgr, conf=conf, iou=iou, imgsz=imgsz, verbose=False, augment=tta)
+    pred = results[0]
+    if pred.boxes is None or len(pred.boxes) == 0:
+        st.info("No detections")
+        return [], {}
+    boxes = pred.boxes.xyxy.cpu().numpy()
+    scores = pred.boxes.conf.cpu().numpy()
+    clsi   = pred.boxes.cls.cpu().numpy().astype(int)
 
-    # ======================= Detection (static) =======================
-    def run_detection(image_pil: Image.Image):
-        model = GLOBAL_MODEL
-        bgr = np.array(image_pil.convert("RGB"))[:, :, ::-1]
-        results = model.predict(bgr, conf=conf, iou=iou, imgsz=imgsz, verbose=False, augment=tta)
-        pred = results[0]
-        if pred.boxes is None or len(pred.boxes) == 0:
-            st.info("No detections")
-            return [], {}
-        boxes = pred.boxes.xyxy.cpu().numpy()
-        scores = pred.boxes.conf.cpu().numpy()
-        clsi   = pred.boxes.cls.cpu().numpy().astype(int)
+    names_map = {i:n for i,n in enumerate(TARGET_NAMES)} if FORCE_CLASS_NAMES else _get_names_map(pred, model)
+    per_class_min = {
+        "Clear plastic bottle": bottle_min,
+        "Drink can":           can_min,
+        "Styrofoam piece":     foam_min,
+    }
 
-        names_map = {i:n for i,n in enumerate(TARGET_NAMES)} if FORCE_CLASS_NAMES else _get_names_map(pred, model)
-        per_class_min = {
-            "Clear plastic bottle": bottle_min,
-            "Drink can":           can_min,
-            "Styrofoam piece":     foam_min,
-        }
+    H, W = bgr.shape[:2]
+    min_area = (min_area_pct / 100.0) * (H * W)
 
-        H, W = bgr.shape[:2]
-        min_area = (min_area_pct / 100.0) * (H * W)
+    dets, counts = [], {}
+    for i in range(len(boxes)):
+        x1, y1, x2, y2 = boxes[i].tolist()
+        w = max(0.0, x2 - x1); h = max(0.0, y2 - y1)
+        area = w * h
+        c = int(clsi[i])
+        name = names_map.get(c, str(c))
+        s = float(scores[i])
+        if s < per_class_min.get(name, conf): continue
+        if area < min_area: continue
+        dets.append({"xyxy":[x1,y1,x2,y2], "class_id":c, "class_name":name, "score":s})
+        counts[name] = counts.get(name, 0) + 1
+    return dets, counts
 
-        dets, counts = [], {}
-        for i in range(len(boxes)):
-            x1, y1, x2, y2 = boxes[i].tolist()
-            w = max(0.0, x2 - x1); h = max(0.0, y2 - y1)
-            area = w * h
-            c = int(clsi[i])
-            name = names_map.get(c, str(c))
-            s = float(scores[i])
-            if s < per_class_min.get(name, conf): continue
-            if area < min_area: continue
-            dets.append({"xyxy":[x1,y1,x2,y2], "class_id":c, "class_name":name, "score":s})
-            counts[name] = counts.get(name, 0) + 1
-        return dets, counts
+def draw_and_show(image_pil: Image.Image, dets):
+    bgr = np.array(image_pil.convert("RGB"))[:, :, ::-1]
+    out = bgr.copy()
+    color = (28,160,78)
+    H, W = out.shape[:2]
+    for d in dets:
+        x1, y1, x2, y2 = map(int, d["xyxy"])
+        cv2.rectangle(out, (x1, y1), (x2, y2), color, 2)
+        label = f'{d["class_name"]} {d["score"]:.2f}'
+        (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
+        y_text = y1 - 4
+        if y_text - th - 4 < 0: y_text = min(y1 + th + 6, H - 2)
+        x_text = max(0, min(x1, W - tw - 6))
+        cv2.rectangle(out, (x_text, max(0, y_text - th - 4)),
+                           (min(x_text + tw + 6, W - 1), min(y_text + 2, H - 1)), color, -1)
+        cv2.putText(out, label, (x_text + 3, y_text - 2), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1, cv2.LINE_AA)
+    st.image(Image.fromarray(out[:, :, ::-1]), caption="Detections", use_container_width=True)
 
-    def draw_and_show(image_pil: Image.Image, dets):
-        bgr = np.array(image_pil.convert("RGB"))[:, :, ::-1]
-        out = bgr.copy()
-        color = (28,160,78)
-        H, W = out.shape[:2]
-        for d in dets:
-            x1, y1, x2, y2 = map(int, d["xyxy"])
-            cv2.rectangle(out, (x1, y1), (x2, y2), color, 2)
-            label = f'{d["class_name"]} {d["score"]:.2f}'
-            (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
-            y_text = y1 - 4
-            if y_text - th - 4 < 0: y_text = min(y1 + th + 6, H - 2)
-            x_text = max(0, min(x1, W - tw - 6))
-            cv2.rectangle(out, (x_text, max(0, y_text - th - 4)),
-                               (min(x_text + tw + 6, W - 1), min(y_text + 2, H - 1)), color, -1)
-            cv2.putText(out, label, (x_text + 3, y_text - 2), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1, cv2.LINE_AA)
-        st.image(Image.fromarray(out[:, :, ::-1]), caption="Detections", use_container_width=True)
-
-    # Auto-run
-    if image is not None:
-        st.image(image, caption="Input", use_container_width=True)
-        should_run = auto_run or st.button("Run detection")
-        if should_run:
-            dets, counts = run_detection(image)
-            if dets:
-                draw_and_show(image, dets)
-                detected_labels = sorted({d["class_name"] for d in dets})
-                guide_labels = [lbl for lbl in detected_labels if lbl in GUIDE]
-                if guide_labels:
-                    st.subheader(f"Disposal instructions — {city_label}")
-                    for lbl in guide_labels:
-                        show_guidance_card(lbl, counts.get(lbl, 0), GUIDE=GUIDE)
-                else:
-                    st.caption("No local guidance to show for these detections.")
+# Auto-run
+if image is not None:
+    st.image(image, caption="Input", use_container_width=True)
+    should_run = auto_run or st.button("Run detection")
+    if should_run:
+        dets, counts = run_detection(image)
+        if dets:
+            draw_and_show(image, dets)
+            detected_labels = sorted({d["class_name"] for d in dets})
+            guide_labels = [lbl for lbl in detected_labels if lbl in GUIDE]
+            if guide_labels:
+                st.subheader(f"Disposal instructions · {city_label}")
+                for lbl in guide_labels:
+                    show_guidance_card(lbl, counts.get(lbl, 0), GUIDE=GUIDE)
             else:
-                st.info("All detections were filtered by thresholds. Try lowering per-class thresholds or min box area.")
+                st.caption("No local guidance to show for these detections.")
+        else:
+            st.info("All detections were filtered by thresholds. Try lowering per class thresholds or min box area.")
 
 # ======================= Impact & SDGs =======================
 st.markdown("#### Impact & SDGs")
 st.markdown("""
-- **Carbon credits (what they are):** A carbon credit represents **1 tonne of CO₂-equivalent** reduced or removed. Credits exist only when a **registered project** follows an **approved methodology** and passes **MRV**. They are then **issued on a registry** such as Gold Standard, Verra, or Japan’s J-Credit.  
-- **This app does not issue credits.** It helps people sort properly. Educational CO₂e-avoided estimates are okay, but they are **not credits**.
+- **Carbon credits (what they are):** A carbon credit represents **1 tonne of CO₂ equivalent** reduced or removed. Credits exist only when a **registered project** follows an **approved methodology** and passes **MRV**. They are then **issued on a registry** such as Gold Standard, Verra, or Japan’s J Credit.
+- **This app does not issue credits.** It helps people sort properly. Educational CO₂e avoided estimates are okay, but they are **not credits**.
 """, unsafe_allow_html=True)
 st.markdown(
     f"""
@@ -748,7 +479,7 @@ st.markdown(
   <a class="eco-link" href="{LINK_WB_MRV}"  target="_blank" rel="noopener">World Bank: MRV</a>
   <a class="eco-link" href="{LINK_GS}"      target="_blank" rel="noopener">Gold Standard</a>
   <a class="eco-link" href="{LINK_VERRA}"   target="_blank" rel="noopener">Verra VCS</a>
-  <a class="eco-link" href="{LINK_JCREDIT}" target="_blank" rel="noopener">Japan J-Credit</a>
+  <a class="eco-link" href="{LINK_JCREDIT}" target="_blank" rel="noopener">Japan J Credit</a>
 </div>
 """, unsafe_allow_html=True)
 
@@ -762,6 +493,6 @@ def sdg_tile(col, path, label):
             st.warning(f"Missing {path}")
         st.markdown(f"<div class='sdg-caption'>{label}</div>", unsafe_allow_html=True)
 
-sdg_tile(col1, "sdg12.png", "12 Responsible Consumption & Production")
-sdg_tile(col2, "sdg11.png", "11 Sustainable Cities & Communities")
+sdg_tile(col1, "sdg12.png", "12 Responsible Consumption and Production")
+sdg_tile(col2, "sdg11.png", "11 Sustainable Cities and Communities")
 sdg_tile(col3, "sdg13.png", "13 Climate Action")
