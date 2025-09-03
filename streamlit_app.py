@@ -491,8 +491,9 @@ def sdg_tile(col, path, label):
             st.image(path, width=180)
         else:
             st.warning(f"Missing {path}")
+        st.markdown("Our app promotes SGDs")
         st.markdown(f"<div class='sdg-caption'>{label}</div>", unsafe_allow_html=True)
 
-sdg_tile(col1, "sdg12.png", "12 Responsible Consumption and Production")
-sdg_tile(col2, "sdg11.png", "11 Sustainable Cities and Communities")
-sdg_tile(col3, "sdg13.png", "13 Climate Action")
+sdg_tile(col1, "sdg12.png")
+sdg_tile(col2, "sdg11.png")
+sdg_tile(col3, "sdg13.png")
