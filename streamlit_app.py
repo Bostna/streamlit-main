@@ -153,7 +153,7 @@ GUIDE_SHIBUYA = {
             {"text": "Hanwa explains used aluminum cans are cleaned, melted and supplied as remelt scrap ingots then used again as cans.",
              "url": HANWA_CAN2CAN},
         ],
-        "images": [HANWA_CAN2CAN, CCBJI_CAN2CAN],
+        "images": [HANWA_CAN2CAN],
         "icons": [ICON_AL, ICON_STEEL],
         "link": SHIBUYA_GUIDE_URL,
         "poster": SHIBUYA_POSTER_EN,
