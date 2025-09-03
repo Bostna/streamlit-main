@@ -147,13 +147,13 @@ GUIDE_SHIBUYA = {
         ],
         "recycles_to": [
             "New beverage cans (can-to-can)",
-            "Automotive & construction parts (aluminum)",
+            "Automotive and construction parts (aluminum)",
             "Remelt scrap ingots"
         ],
         "facts": [
             {"text": "Coca-Cola Bottlers Japan promotes CAN-to-CAN, including products using recycled aluminum bodies.",
              "url": "https://en.ccbji.co.jp/news/detail.php?id=1347"},
-            {"text": "Hanwa: used aluminum cans are cleaned, melted and supplied as remelt scrap ingots — then used again as cans.",
+            {"text": "Hanwa: used aluminum cans are cleaned, melted and supplied as remelt scrap ingots then used again as cans.",
              "url": HANWA_CAN2CAN},
         ],
         "images": [HANWA_CAN2CAN, CCBJI_CAN2CAN],
@@ -172,9 +172,9 @@ GUIDE_SHIBUYA = {
         "steps": [
             "Remove food residue; wipe or quick rinse if necessary.",
             "Break large pieces down to fit bags.",
-            "Put Styrofoam with Plastic items in a clear/semi-clear bag (follow building day)."
+            "Put Styrofoam with Plastic items in a clear or semi-clear bag following building day."
         ],
-        "recycles_to": ["Foam trays & molded parts", "Pellets for plastic goods", "(Sometimes) thermal recovery"],
+        "recycles_to": ["Foam trays and molded parts", "Pellets for plastic goods", "(Sometimes) thermal recovery"],
         "facts": [
             {"text": "Plastic sorting rules vary by municipality; see Shibuya’s plastics notice for details.",
              "url": SHIBUYA_PLASTICS_NOTICE},
@@ -257,14 +257,12 @@ def _guide_link(url: str, label: str):
     st.markdown(f'<a class="eco-link" href="{url}" target="_blank" rel="noopener">{label}</a>', unsafe_allow_html=True)
 
 def _guidance_text(info: dict):
-    # 1) How to put out (primary)
     st.markdown('<div class="eco-section-title-primary">How to put out</div>', unsafe_allow_html=True)
     st.markdown('<ul class="eco-list">', unsafe_allow_html=True)
     for step in info["steps"]:
         st.markdown(f'<li>{step}</li>', unsafe_allow_html=True)
     st.markdown('</ul>', unsafe_allow_html=True)
 
-    # 2) (renamed) Why separate → How to put out (per your request)
     if info.get("why_separate"):
         st.markdown('<div class="eco-section-title">How to put out</div>', unsafe_allow_html=True)
         st.markdown('<ul class="eco-list">', unsafe_allow_html=True)
@@ -272,7 +270,6 @@ def _guidance_text(info: dict):
             st.markdown(f'<li>{reason}</li>', unsafe_allow_html=True)
         st.markdown('</ul>', unsafe_allow_html=True)
 
-    # 3) Recycles to
     if info.get("recycles_to"):
         st.markdown('<div class="eco-section-title">Commonly recycled into</div>', unsafe_allow_html=True)
         st.markdown('<div class="chip-row">', unsafe_allow_html=True)
@@ -280,7 +277,6 @@ def _guidance_text(info: dict):
             st.markdown(f'<div class="chip">{item}</div>', unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # 4) Did you know?
     facts = info.get("facts", [])
     if facts:
         st.markdown('<div class="eco-section-title">Did you know?</div>', unsafe_allow_html=True)
@@ -325,11 +321,10 @@ def show_guidance_card(label: str, count: int = 0, GUIDE=None):
     st.markdown('</div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
-# ======================= Live video processor (WebRTC) =======================
+# ======================= Live video processor (WebRTC) with tuning =======================
 class YOLOProcessor(VideoProcessorBase):
     """
-    Separate YOLO instance per processor (thread-safe for live).
-    Tries BGR vs RGB once on the first frame and locks the better option.
+    Separate YOLO instance per processor. Adds image tuning for brighter live feed.
     """
     def __init__(self):
         # Build a dedicated model for this thread
@@ -362,6 +357,15 @@ class YOLOProcessor(VideoProcessorBase):
         self.color_order = "auto"  # "bgr", "rgb", or "auto"
         self._color_locked = False
 
+        # Image tuning defaults
+        self.gamma = 1.20      # mid-tone brightness
+        self.alpha = 1.00      # contrast multiplier
+        self.beta  = 5         # brightness offset
+        self.use_gray_wb = True
+        self.use_clahe   = False
+        self.denoise     = False
+        self._lut_cache = {}
+
         self.last_bgr = None
         self.last_dets = []
         self.last_infer_ms = 0.0
@@ -377,6 +381,55 @@ class YOLOProcessor(VideoProcessorBase):
         if FORCE_CLASS_NAMES:
             return {i: n for i, n in enumerate(TARGET_NAMES)}
         return getattr(self.model, "names", {0:"Clear plastic bottle",1:"Drink can",2:"Styrofoam piece"})
+
+    # ---------- Image tuning helpers ----------
+    def _gamma_lut(self, g: float) -> np.ndarray:
+        g = float(max(0.10, min(5.0, g)))
+        key = round(g, 3)
+        if key not in self._lut_cache:
+            inv = 1.0 / g
+            self._lut_cache[key] = np.array([(i / 255.0) ** inv * 255.0 for i in range(256)], dtype=np.uint8)
+        return self._lut_cache[key]
+
+    def _gray_world_wb(self, bgr: np.ndarray) -> np.ndarray:
+        f = bgr.astype(np.float32)
+        mean_b, mean_g, mean_r = f.reshape(-1, 3).mean(axis=0)
+        kb = (mean_g / (mean_b + 1e-6))
+        kr = (mean_g / (mean_r + 1e-6))
+        f[:, :, 0] *= kb
+        f[:, :, 2] *= kr
+        return np.clip(f, 0, 255).astype(np.uint8)
+
+    def _apply_tuning(self, bgr: np.ndarray) -> np.ndarray:
+        out = bgr
+        if self.use_gray_wb:
+            try: out = self._gray_world_wb(out)
+            except Exception: pass
+        if abs(self.alpha - 1.0) > 1e-3 or abs(self.beta) > 0:
+            out = cv2.convertScaleAbs(out, alpha=float(self.alpha), beta=int(self.beta))
+        if abs(self.gamma - 1.0) > 1e-3:
+            try:
+                lut = self._gamma_lut(self.gamma)
+                out = cv2.LUT(out, lut)
+            except Exception:
+                pass
+        if self.use_clahe:
+            try:
+                lab = cv2.cvtColor(out, cv2.COLOR_BGR2LAB)
+                l, a, b = cv2.split(lab)
+                clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+                cl = clahe.apply(l)
+                limg = cv2.merge((cl, a, b))
+                out = cv2.cvtColor(limg, cv2.COLOR_LAB2BGR)
+            except Exception:
+                pass
+        if self.denoise:
+            try:
+                out = cv2.bilateralFilter(out, d=5, sigmaColor=50, sigmaSpace=50)
+            except Exception:
+                pass
+        return out
+    # ------------------------------------------
 
     def _extract_dets(self, pred, H, W, names_map, min_area):
         dets = []
@@ -410,6 +463,9 @@ class YOLOProcessor(VideoProcessorBase):
         bgr = frame.to_ndarray(format="bgr24")
         if self.mirror:
             bgr = cv2.flip(bgr, 1)
+
+        # Apply tuning for both display and inference
+        bgr = self._apply_tuning(bgr)
 
         H, W = bgr.shape[:2]
         min_area = (self.min_area_pct / 100.0) * (H * W)
@@ -451,9 +507,15 @@ class YOLOProcessor(VideoProcessorBase):
             cv2.rectangle(bgr, (xt, max(0, yt - th - 6)), (min(xt + tw + 8, W - 1), min(yt + 3, H - 1)), color, -1)
             cv2.putText(bgr, label, (xt + 4, yt - 4), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255,255,255), 2, cv2.LINE_AA)
 
-        # Overlay (shows count & ms even if 0 dets)
-        dbg = f"{len(dets)} dets | {self.last_infer_ms:.0f} ms | imgsz {self.imgsz} | {self.color_order.upper()}" \
-              + (" | DEBUG" if self.draw_all_debug else "")
+        # Overlay
+        dbg = (
+            f"{len(dets)} dets | {self.last_infer_ms:.0f} ms | imgsz {self.imgsz} | {self.color_order.upper()} "
+            f"| γ {self.gamma:.2f} α {self.alpha:.2f} β {int(self.beta)}"
+            + (" | WB" if self.use_gray_wb else "")
+            + (" | CLAHE" if self.use_clahe else "")
+            + (" | DENOISE" if self.denoise else "")
+            + (" | DEBUG" if self.draw_all_debug else "")
+        )
         cv2.putText(bgr, dbg, (8, 22), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0,0,0), 3, cv2.LINE_AA)
         cv2.putText(bgr, dbg, (8, 22), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255,255,255), 1, cv2.LINE_AA)
 
@@ -470,7 +532,7 @@ with logo_col:
 # ======================= MAIN INTRO =======================
 st.markdown("### Let’s Start Sorting!")
 
-# City/Ward block (below heading, before step 1)
+# City/Ward block
 c1, c2 = st.columns([2, 6])
 with c1:
     city_label = st.selectbox("City / Ward", ["Shibuya (Tokyo)"], index=0)
@@ -479,10 +541,10 @@ with c2:
 city_id = CITY_MAP[city_label]
 GUIDE = GUIDE_BY_CITY.get(city_id, {})
 
-# Steps (bold)
+# Steps
 st.markdown("""
 <ol class="howto">
-  <li><strong>Select Upload image</strong> (or open your <strong>Camera</strong>).</li>
+  <li><strong>Select Upload image</strong> or open your <strong>Camera</strong>.</li>
   <li><strong>Detection runs</strong> and shows results.</li>
   <li>Follow the <strong>custom disposal instructions below for your city</strong>.</li>
 </ol>
@@ -503,7 +565,7 @@ if src == "Live (beta)":
         async_processing=True,
     )
 
-    # Live tuning panel (helps diagnose without redeploy)
+    # Live tuning panel
     if webrtc_ctx and webrtc_ctx.video_processor:
         vp = webrtc_ctx.video_processor
         with st.expander("Live settings (beta)"):
@@ -512,15 +574,25 @@ if src == "Live (beta)":
             vp.per_class_min["Clear plastic bottle"] = st.slider("Bottle min", 0.0, 1.0, float(vp.per_class_min["Clear plastic bottle"]), 0.01)
             vp.per_class_min["Drink can"]            = st.slider("Can min",    0.0, 1.0, float(vp.per_class_min["Drink can"]), 0.01)
             vp.per_class_min["Styrofoam piece"]      = st.slider("Foam min",   0.0, 1.0, float(vp.per_class_min["Styrofoam piece"]), 0.01)
-            co = st.radio("Color order", ["Auto", "BGR", "RGB"], index=0, horizontal=True)
+
+            co = st.radio(
+                "Color order",
+                ["Auto", "BGR", "RGB"],
+                index={"auto":0, "bgr":1, "rgb":2}[vp.color_order] if vp.color_order in ["auto","bgr","rgb"] else 0,
+                horizontal=True
+            )
             vp.color_order = {"Auto":"auto","BGR":"bgr","RGB":"rgb"}[co]
             vp._color_locked = (vp.color_order != "auto")
-            vp.draw_all_debug = st.toggle(
-                "Draw ALL raw boxes (debug)",
-                value=False,
-                help="Ignore thresholds & area filter to verify the pipeline."
-            )
-            vp.mirror = st.toggle("Mirror (selfie view)", value=False)
+            vp.draw_all_debug = st.toggle("Draw ALL raw boxes (debug)", value=vp.draw_all_debug)
+            vp.mirror = st.toggle("Mirror (selfie view)", value=vp.mirror)
+
+            st.markdown("**Image tuning**")
+            vp.gamma = st.slider("Gamma (mid-tone brightness)", 0.5, 2.5, float(vp.gamma), 0.05)
+            vp.alpha = st.slider("Contrast α (multiplier)", 0.5, 2.0, float(vp.alpha), 0.05)
+            vp.beta  = st.slider("Brightness β (offset)", -50, 50, int(vp.beta), 1)
+            vp.use_gray_wb = st.toggle("Auto white balance (gray-world)", value=vp.use_gray_wb)
+            vp.use_clahe   = st.toggle("Contrast boost (CLAHE)", value=vp.use_clahe)
+            vp.denoise     = st.toggle("Denoise (bilateral)", value=vp.denoise)
 
     colA, _ = st.columns([1,2])
     with colA:
@@ -541,11 +613,11 @@ if src == "Live (beta)":
                     else:
                         st.caption("No local guidance available for these detections.")
                 else:
-                    st.info("No objects detected yet. Hold the item closer (fills ~⅓ of frame), in good light, and try again.")
+                    st.info("No objects detected yet. Hold the item closer and in good light, then try again.")
 
 # --- Static (Upload image / Camera) ---
 else:
-    auto_run = st.toggle("Auto-run detection", value=True, help="Run detection automatically after you choose/take a photo.")
+    auto_run = st.toggle("Auto-run detection", value=True, help="Run detection automatically after you choose or take a photo.")
     image = None
 
     if src == "Upload image":
@@ -556,7 +628,6 @@ else:
         if shot: image = Image.open(shot).convert("RGB")
 
     # ======================= Advanced settings (below inputs) =======================
-    # Recommended defaults (your requested values)
     _REC_CONF=0.00; _REC_IOU=0.00; _REC_IMGSZ=200
     _REC_BOTTLE=0.20; _REC_CAN=0.20; _REC_FOAM=0.20; _REC_AREA_PCT=0.20; _REC_TTA=False
 
@@ -567,7 +638,7 @@ else:
     with st.expander("Advanced settings (optional)"):
         preset = st.radio("Preset", ["Minimum filters", "Recommended", "Strict"], index=1, horizontal=True)
         if preset == "Minimum filters":
-            conf=0.05; iou=0.10; imgsz=IMGSZ_OPTIONS[0]  # 200
+            conf=0.05; iou=0.10; imgsz=IMGSZ_OPTIONS[0]
             bottle_min=0.00; can_min=0.00; foam_min=0.00; min_area_pct=0.0; tta=False
         elif preset == "Recommended":
             conf=_REC_CONF; iou=_REC_IOU; imgsz=_REC_IMGSZ
@@ -666,8 +737,8 @@ else:
 # ======================= Impact & SDGs =======================
 st.markdown("#### Impact & SDGs")
 st.markdown("""
-- **Carbon credits (what they are):** A carbon credit represents **1 tonne of CO₂-equivalent** reduced or removed. Credits exist only when a **registered project** follows an **approved methodology** and passes **MRV**; they are then **issued on a registry** (e.g., Gold Standard, Verra, or Japan’s J-Credit).  
-- **This app does not issue credits.** It helps people sort properly. Educational CO₂e-avoided estimates are okay, but they’re **not credits**.
+- **Carbon credits (what they are):** A carbon credit represents **1 tonne of CO₂-equivalent** reduced or removed. Credits exist only when a **registered project** follows an **approved methodology** and passes **MRV**. They are then **issued on a registry** such as Gold Standard, Verra, or Japan’s J-Credit.  
+- **This app does not issue credits.** It helps people sort properly. Educational CO₂e-avoided estimates are okay, but they are **not credits**.
 """, unsafe_allow_html=True)
 st.markdown(
     f"""
@@ -681,7 +752,7 @@ st.markdown(
 </div>
 """, unsafe_allow_html=True)
 
-# SDG tiles (local files) – fixed width keeps them crisp
+# SDG tiles
 col1, col2, col3 = st.columns(3)
 def sdg_tile(col, path, label):
     with col:
