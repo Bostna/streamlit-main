@@ -53,10 +53,9 @@ def apply_theme():
       .chip{ background:var(--pill); color:var(--pri2); border:1px solid var(--bd);
              border-radius:999px; padding:4px 10px; font-size:.88rem; }
 
-      /* SDGs (use st.image(), just spacing helpers) */
       .sdg-caption{ text-align:center; font-weight:800; margin-top:10px; }
 
-      /* Remove all separators / default hr lines / expander borders */
+      /* Remove all default separators / lines / borders */
       [data-testid="stDivider"], hr, [role="separator"]{ display:none !important; }
       [data-testid="stExpander"] details, [data-testid="stExpander"] summary{
         border:none !important; box-shadow:none !important; background:transparent !important;
@@ -78,7 +77,6 @@ CACHED_DIR  = "/tmp/models"
 def _hash_url(u: str) -> str: return hashlib.sha1(u.encode("utf-8")).hexdigest()[:12]
 CACHED_PATH = os.path.join(CACHED_DIR, f"weights_{_hash_url(MODEL_URL)}.pt")
 
-# Allow 200 in options per your request
 IMGSZ_OPTIONS = [200, 320, 416, 512, 640, 800, 960, 1280]
 
 # Force UI names — class 2 is "Styrofoam piece"
@@ -270,8 +268,6 @@ def _guide_link(url: str, label: str):
     st.markdown(f'<a class="eco-link" href="{url}" target="_blank" rel="noopener">{label}</a>', unsafe_allow_html=True)
 
 def _guidance_text(info: dict):
-    # ORDER: How to put out (primary) FIRST, then the renamed “Why separate” section (also titled 'How to put out'),
-    # then “Commonly recycled into”, then “Did you know?”
     st.markdown('<div class="eco-section-title-primary">How to put out</div>', unsafe_allow_html=True)
     st.markdown('<ul class="eco-list">', unsafe_allow_html=True)
     for step in info["steps"]:
@@ -344,7 +340,7 @@ class YOLOProcessor(VideoProcessorBase):
         # Live-friendly defaults
         self.conf = 0.0
         self.iou = 0.0
-        self.imgsz = 416           # larger than 200; try 640 if CPU allows
+        self.imgsz = 416           # try 640 on desktop if fast enough
         self.per_class_min = {
             "Clear plastic bottle": 0.10,
             "Drink can":            0.10,
@@ -352,7 +348,11 @@ class YOLOProcessor(VideoProcessorBase):
         }
         self.min_area_pct = 0.05   # 0.05% of frame area
         self.frame_skip = 0        # process every frame
-        self._cnt = 0
+
+        # Auto color-order detection (BGR vs RGB)
+        self.color_order = "auto"  # "bgr", "rgb", or "auto"
+        self._color_locked = False
+
         self.last_bgr = None
         self.last_dets = []
         self.last_infer_ms = 0.0
@@ -369,16 +369,15 @@ class YOLOProcessor(VideoProcessorBase):
             self.model, "names", {0:"Clear plastic bottle",1:"Drink can",2:"Styrofoam piece"}
         )
 
-    def recv(self, frame: av.VideoFrame) -> av.VideoFrame:
-        bgr = frame.to_ndarray(format="bgr24")
+    def _infer_once(self, img_bgr):
+        """Run predict on either BGR or RGB based on chosen color_order."""
+        if self.color_order == "rgb":
+            img = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
+        else:
+            img = img_bgr
+        return self.model.predict(img, conf=self.conf, iou=self.iou, imgsz=self.imgsz, verbose=False)
 
-        t0 = time.perf_counter()
-        names_map = self._names_map()
-        H, W = bgr.shape[:2]
-        min_area = (self.min_area_pct / 100.0) * (H * W)
-
-        results = self.model.predict(bgr, conf=self.conf, iou=self.iou, imgsz=self.imgsz, verbose=False)
-        pred = results[0]
+    def _extract_dets(self, pred, H, W, names_map, min_area):
         dets = []
         if pred.boxes is not None and len(pred.boxes) > 0:
             boxes  = pred.boxes.xyxy.cpu().numpy()
@@ -393,6 +392,37 @@ class YOLOProcessor(VideoProcessorBase):
                 if score < self.per_class_min.get(name, self.conf): continue
                 if area  < min_area: continue
                 dets.append({"xyxy":[x1,y1,x2,y2], "class_name":name, "score":score})
+        return dets
+
+    def recv(self, frame: av.VideoFrame) -> av.VideoFrame:
+        bgr = frame.to_ndarray(format="bgr24")
+        names_map = self._names_map()
+        H, W = bgr.shape[:2]
+        min_area = (self.min_area_pct / 100.0) * (H * W)
+
+        t0 = time.perf_counter()
+
+        # First frame: auto decide color order by comparing BGR vs RGB detections
+        if self.color_order == "auto" and not self._color_locked:
+            try:
+                pred_bgr = self.model.predict(bgr, conf=self.conf, iou=self.iou, imgsz=self.imgsz, verbose=False)
+                dets_bgr = self._extract_dets(pred_bgr[0], H, W, names_map, min_area)
+
+                rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
+                pred_rgb = self.model.predict(rgb, conf=self.conf, iou=self.iou, imgsz=self.imgsz, verbose=False)
+                dets_rgb = self._extract_dets(pred_rgb[0], H, W, names_map, min_area)
+
+                self.color_order = "rgb" if len(dets_rgb) > len(dets_bgr) else "bgr"
+                self._color_locked = True
+            except Exception:
+                # fallback to BGR
+                self.color_order = "bgr"
+                self._color_locked = True
+
+        # Normal inference with chosen color order
+        results = self._infer_once(bgr)
+        pred = results[0]
+        dets = self._extract_dets(pred, H, W, names_map, min_area)
 
         self.last_infer_ms = (time.perf_counter() - t0) * 1000.0
 
@@ -400,7 +430,7 @@ class YOLOProcessor(VideoProcessorBase):
         color = (28,160,78)  # theme green
         for d in dets:
             x1, y1, x2, y2 = map(int, d["xyxy"])
-            cv2.rectangle(bgr, (x1, y1), (x2, y2), color, 3)   # thicker
+            cv2.rectangle(bgr, (x1, y1), (x2, y2), color, 3)
             label = f'{d["class_name"]} {d["score"]:.2f}'
             (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)
             xt = max(0, min(x1, W - tw - 6))
@@ -409,7 +439,7 @@ class YOLOProcessor(VideoProcessorBase):
             cv2.putText(bgr, label, (xt + 4, yt - 4), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255,255,255), 2, cv2.LINE_AA)
 
         # Debug overlay
-        dbg = f"{len(dets)} dets | {self.last_infer_ms:.0f} ms | imgsz {self.imgsz}"
+        dbg = f"{len(dets)} dets | {self.last_infer_ms:.0f} ms | imgsz {self.imgsz} | {self.color_order.upper()}"
         cv2.putText(bgr, dbg, (8, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0,0,0), 3, cv2.LINE_AA)
         cv2.putText(bgr, dbg, (8, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255,255,255), 1, cv2.LINE_AA)
 
@@ -458,6 +488,20 @@ if src == "Live (beta)":
         video_processor_factory=YOLOProcessor,
         async_processing=True,
     )
+
+    # Optional live-tuning panel (helps diagnose)
+    if webrtc_ctx and webrtc_ctx.video_processor:
+        with st.expander("Live settings (beta)"):
+            vp = webrtc_ctx.video_processor
+            vp.imgsz = st.select_slider("Live imgsz", options=[320,416,512,640], value=int(vp.imgsz))
+            vp.min_area_pct = st.slider("Min area (%)", 0.0, 2.0, float(vp.min_area_pct), 0.05)
+            vp.per_class_min["Clear plastic bottle"] = st.slider("Bottle min", 0.0, 1.0, float(vp.per_class_min["Clear plastic bottle"]), 0.01)
+            vp.per_class_min["Drink can"]            = st.slider("Can min",    0.0, 1.0, float(vp.per_class_min["Drink can"]), 0.01)
+            vp.per_class_min["Styrofoam piece"]      = st.slider("Foam min",   0.0, 1.0, float(vp.per_class_min["Styrofoam piece"]), 0.01)
+            co = st.radio("Color order", ["Auto", "BGR", "RGB"], index=0, horizontal=True)
+            vp.color_order = {"Auto":"auto","BGR":"bgr","RGB":"rgb"}[co]
+            vp._color_locked = (vp.color_order != "auto")
+
     colA, _ = st.columns([1,2])
     with colA:
         if webrtc_ctx and webrtc_ctx.video_processor:
@@ -491,7 +535,6 @@ else:
         if shot: image = Image.open(shot).convert("RGB")
 
     # ======================= Advanced settings (below inputs) =======================
-    # Recommended defaults (auto) — imgsz=200
     _REC_CONF=0.00; _REC_IOU=0.00; _REC_IMGSZ=200
     _REC_BOTTLE=0.20; _REC_CAN=0.20; _REC_FOAM=0.20; _REC_AREA_PCT=0.20; _REC_TTA=False
 
@@ -620,7 +663,7 @@ st.markdown(
 </div>
 """, unsafe_allow_html=True)
 
-# SDG tiles using st.image() to avoid broken <img> on some hosts
+# SDG tiles via st.image() (reliable for local files)
 col1, col2, col3 = st.columns(3)
 def sdg_tile(col, path, label):
     with col:
@@ -633,4 +676,3 @@ def sdg_tile(col, path, label):
 sdg_tile(col1, "sdg12.png", "12 Responsible Consumption & Production")
 sdg_tile(col2, "sdg11.png", "11 Sustainable Cities & Communities")
 sdg_tile(col3, "sdg13.png", "13 Climate Action")
-
