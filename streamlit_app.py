@@ -238,7 +238,7 @@ def _ensure_model_path() -> str:
 
 def _cache_key_for(path: str) -> str:
     try:
-        return f"{path}:{os.path.getmtime(path)}}:{os.path.getsize(path)}"
+        return f"{path}:{os.path.getmtime(path)}:{os.path.getsize(path)}"
     except Exception:
         return path
 
